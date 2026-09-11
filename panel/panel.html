@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CallTogether</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <div class="panel">
+      <div class="status-row">
+        <span class="dot" data-dot></span>
+        <p id="status" class="status">Starting…</p>
+      </div>
+
+      <div id="progressWrap" class="progress-wrap" hidden>
+        <div class="progress-meta">
+          <span id="progressStage">Loading model</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <p id="progressDetail" class="progress-detail"></p>
+      </div>
+
+      <div class="transcript" id="transcript">
+        <span id="finalText"></span><span id="partialText" class="partial"></span>
+      </div>
+
+      <div class="actions">
+        <button id="shareBtn" type="button" disabled>Share audio</button>
+        <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
+        <button id="clearBtn" type="button" class="ghost">Clear</button>
+      </div>
+
+      <p class="hint" id="hint">
+        Detecting system… model loads inside this panel (no extra window).
+      </p>
+    </div>
+
+    <script src="../vendor/vosk/vosk.js"></script>
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>

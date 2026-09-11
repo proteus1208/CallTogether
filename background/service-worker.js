@@ -1,4 +1,3 @@
-const CAPTURE_URL = "capture/capture.html";
 const DEFAULT_SETTINGS = {
   hotkey: {
     altKey: true,
@@ -12,7 +11,6 @@ const DEFAULT_SETTINGS = {
 let capturing = false;
 let transcript = "";
 let partial = "";
-let captureWindowId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.sync.get(null);
@@ -51,45 +49,49 @@ async function broadcastState(extra = {}) {
   );
 }
 
-async function openCaptureWindow() {
-  if (captureWindowId != null) {
+async function showPanelOnActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    return { ok: false, error: "No active tab. Open your AI platform tab first." };
+  }
+  if (!tab.url || !/^https?:/i.test(tab.url)) {
+    return {
+      ok: false,
+      error: "Open a normal https AI page (ChatGPT, Claude, etc.), then Start.",
+    };
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "SHOW_PANEL" });
+  } catch {
     try {
-      await chrome.windows.update(captureWindowId, { focused: true });
-      return captureWindowId;
-    } catch {
-      captureWindowId = null;
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content/content.js"],
+      });
+      await chrome.scripting.insertCSS({
+        target: { tabId: tab.id },
+        files: ["content/content.css"],
+      });
+      await chrome.tabs.sendMessage(tab.id, { type: "SHOW_PANEL" });
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "Could not inject panel into this tab.",
+      };
     }
   }
 
-  const win = await chrome.windows.create({
-    url: chrome.runtime.getURL(CAPTURE_URL),
-    type: "popup",
-    width: 440,
-    height: 420,
-    focused: true,
-  });
-
-  captureWindowId = win.id ?? null;
-  return captureWindowId;
-}
-
-async function closeCaptureWindow() {
-  if (captureWindowId == null) return;
-  try {
-    await chrome.windows.remove(captureWindowId);
-  } catch {
-    // already closed
-  }
-  captureWindowId = null;
+  return { ok: true };
 }
 
 async function startCapture() {
+  // Do not open a separate window — only reveal the in-page floating panel.
   transcript = "";
   partial = "";
   capturing = false;
   await broadcastState();
-  await openCaptureWindow();
-  return { ok: true, openedCaptureWindow: true };
+  return showPanelOnActiveTab();
 }
 
 async function stopCapture() {
@@ -98,12 +100,11 @@ async function stopCapture() {
   try {
     await chrome.runtime.sendMessage({
       type: "CAPTURE_PAGE_STOP",
-      target: "capture",
+      target: "panel",
     });
   } catch {
-    // capture page may already be closed
+    // panel may not be listening
   }
-  await closeCaptureWindow();
   await broadcastState();
   return { ok: true };
 }
@@ -115,25 +116,15 @@ async function clearTranscript() {
   return { ok: true, transcript };
 }
 
-chrome.windows.onRemoved.addListener((windowId) => {
-  if (windowId === captureWindowId) {
-    captureWindowId = null;
-    if (capturing) {
-      capturing = false;
-      partial = "";
-      broadcastState({ error: "Capture window closed." });
-    }
-  }
-});
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "GET_STATE": {
         sendResponse({ capturing, transcript, partial });
         break;
       }
-      case "START_CAPTURE": {
+      case "START_CAPTURE":
+      case "SHOW_PANEL": {
         sendResponse(await startCapture());
         break;
       }
@@ -185,9 +176,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "CAPTURE_ENDED": {
         capturing = false;
         partial = "";
-        if (sender?.tab?.windowId != null) {
-          captureWindowId = null;
-        }
         await broadcastState();
         sendResponse({ ok: true });
         break;

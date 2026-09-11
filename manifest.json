@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.1.0",
-  "description": "Capture system/tab call audio for free, show a live floating transcript, and paste it into AI chats with a hotkey.",
+  "version": "1.2.1",
+  "description": "Capture system/tab call audio for free, show a live floating transcript on the AI page, and paste with a hotkey.",
   "permissions": [
     "storage",
     "tabs",
-    "windows",
-    "scripting"
+    "scripting",
+    "activeTab",
+    "desktopCapture"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -42,10 +43,11 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "panel/*",
         "models/*",
         "vendor/vosk/*"
       ],
-      "matches": ["<all_urls>"]
+      "matches": ["http://*/*", "https://*/*"]
     }
   ]
 }

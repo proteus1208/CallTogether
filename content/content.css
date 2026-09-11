@@ -3,15 +3,15 @@
   top: 72px;
   right: 18px;
   z-index: 2147483646;
-  width: min(360px, calc(100vw - 24px));
-  max-height: min(420px, calc(100vh - 40px));
+  width: min(380px, calc(100vw - 24px));
+  height: 360px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 10px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(15, 28, 23, 0.94);
+  background: rgba(15, 28, 23, 0.96);
   color: #e7f3ec;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(10px);
@@ -21,9 +21,17 @@
   user-select: none;
 }
 
-#calltogether-float-root.ct-collapsed .ct-body,
+#calltogether-float-root.ct-collapsed {
+  height: auto;
+}
+
+#calltogether-float-root.ct-collapsed .ct-frame,
 #calltogether-float-root.ct-collapsed .ct-footer {
   display: none;
+}
+
+#calltogether-float-root.ct-dragging {
+  opacity: 0.92;
 }
 
 #calltogether-float-root .ct-header {
@@ -32,6 +40,7 @@
   justify-content: space-between;
   gap: 8px;
   cursor: grab;
+  flex: 0 0 auto;
 }
 
 #calltogether-float-root .ct-header:active {
@@ -52,14 +61,10 @@
   background: #7f8f87;
 }
 
-#calltogether-float-root .ct-dot.ct-live {
+#calltogether-float-root .ct-dot.ct-live,
+#calltogether-float-root.ct-capturing .ct-dot {
   background: #3ecf8e;
   box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.18);
-}
-
-#calltogether-float-root .ct-actions {
-  display: flex;
-  gap: 6px;
 }
 
 #calltogether-float-root .ct-actions button {
@@ -73,35 +78,19 @@
   font-size: 12px;
 }
 
-#calltogether-float-root .ct-status {
-  color: #9bb5a8;
-  font-size: 12px;
-}
-
-#calltogether-float-root.ct-capturing .ct-status {
-  color: #3ecf8e;
-}
-
-#calltogether-float-root .ct-body {
-  overflow: auto;
-  max-height: 240px;
-  padding: 10px;
+#calltogether-float-root .ct-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-  min-height: 72px;
-}
-
-#calltogether-float-root .ct-partial {
-  color: #9bb5a8;
-  font-style: italic;
+  background: transparent;
 }
 
 #calltogether-float-root .ct-footer {
   color: #9bb5a8;
   font-size: 11px;
+  flex: 0 0 auto;
 }
 
 #calltogether-float-root kbd {
