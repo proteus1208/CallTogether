@@ -9,20 +9,21 @@ const DEFAULT_SETTINGS = {
 };
 
 const OFFSCREEN_URL = "offscreen/speech.html";
-const MIC_REQUEST_URL = "permission/request-mic.html";
 
 let capturing = false;
 let transcript = "";
 let partial = "";
-let micWindowId = null;
-let startAfterMicGrant = false;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.sync.get(null);
   if (!stored.hotkey) {
     await chrome.storage.sync.set(DEFAULT_SETTINGS);
   }
-  await chrome.storage.local.set({ floatingVisible: true, panelCollapsed: false });
+  await chrome.storage.local.set({
+    floatingVisible: true,
+    panelCollapsed: false,
+    micGranted: false,
+  });
 });
 
 async function broadcastState(extra = {}) {
@@ -112,82 +113,36 @@ async function closeOffscreenDocument() {
   }
 }
 
-async function openNativeMicPrompt() {
-  // Open a top-level extension page so Chrome shows the normal browser
-  // permission dialog (Allow / Block), not a custom in-page UI.
-  if (micWindowId != null) {
-    try {
-      await chrome.windows.update(micWindowId, { focused: true });
-      return;
-    } catch {
-      micWindowId = null;
-    }
-  }
-
-  const win = await chrome.windows.create({
-    url: chrome.runtime.getURL(MIC_REQUEST_URL),
-    type: "popup",
-    width: 1,
-    height: 1,
-    focused: true,
-  });
-  micWindowId = win.id ?? null;
-}
-
-async function closeMicWindow() {
-  if (micWindowId == null) return;
-  try {
-    await chrome.windows.remove(micWindowId);
-  } catch {
-    // already closed
-  }
-  micWindowId = null;
-}
-
-async function startSpeechInOffscreen() {
+async function startListening() {
   await setupOffscreenDocument();
   const result = await chrome.runtime.sendMessage({
     type: "OFFSCREEN_START_SPEECH",
     target: "offscreen",
   });
+
   if (!result?.ok) {
     capturing = false;
     if (result?.needsMicPrompt) {
-      return { ok: false, needsMicPrompt: true, error: result.error };
+      await chrome.storage.local.set({ micGranted: false });
+      return {
+        ok: false,
+        needsPermission: true,
+        error:
+          "Open the CallTogether popup and click Start listening so Chrome can show the microphone Allow/Block dialog.",
+      };
     }
     await broadcastState({
       error: result?.error || "Could not start speech recognition.",
     });
     return { ok: false, error: result?.error };
   }
+
   return { ok: true };
-}
-
-async function startListening() {
-  // If mic was never granted, open a top-level extension page that calls
-  // getUserMedia so Chrome shows the native Allow/Block dialog.
-  const { micGranted } = await chrome.storage.local.get({ micGranted: false });
-  if (!micGranted) {
-    startAfterMicGrant = true;
-    await openNativeMicPrompt();
-    return { ok: true, needsPermission: true };
-  }
-
-  startAfterMicGrant = false;
-  const result = await startSpeechInOffscreen();
-  if (result?.needsPermission || result?.needsMicPrompt) {
-    startAfterMicGrant = true;
-    await chrome.storage.local.set({ micGranted: false });
-    await openNativeMicPrompt();
-    return { ok: true, needsPermission: true };
-  }
-  return result;
 }
 
 async function stopCapture() {
   capturing = false;
   partial = "";
-  startAfterMicGrant = false;
   try {
     await chrome.runtime.sendMessage({
       type: "OFFSCREEN_STOP_SPEECH",
@@ -207,12 +162,6 @@ async function clearTranscript() {
   await broadcastState();
   return { ok: true, transcript };
 }
-
-chrome.windows.onRemoved.addListener((windowId) => {
-  if (windowId === micWindowId) {
-    micWindowId = null;
-  }
-});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
@@ -251,29 +200,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, text });
         break;
       }
-      case "MIC_GRANTED": {
-        await chrome.storage.local.set({ micGranted: true });
-        await closeMicWindow();
-        if (startAfterMicGrant) {
-          startAfterMicGrant = false;
-          sendResponse(await startSpeechInOffscreen());
-        } else {
-          sendResponse({ ok: true });
-        }
-        break;
-      }
-      case "MIC_DENIED": {
-        startAfterMicGrant = false;
-        await chrome.storage.local.set({ micGranted: false });
-        await closeMicWindow();
-        await broadcastState({
-          error: message.error || "Microphone permission denied.",
-        });
-        sendResponse({ ok: true });
-        break;
-      }
       case "CAPTURE_STARTED": {
         capturing = true;
+        await chrome.storage.local.set({ micGranted: true });
         await broadcastState();
         sendResponse({ ok: true });
         break;

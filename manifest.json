@@ -1,15 +1,14 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Live call transcript float + hotkey paste into AI chat.",
   "permissions": [
     "storage",
     "tabs",
     "scripting",
     "activeTab",
-    "offscreen",
-    "windows"
+    "offscreen"
   ],
   "background": {
     "service_worker": "background/service-worker.js",

@@ -31,18 +31,34 @@ function setCapturingUi(capturing) {
 
 async function startCapture() {
   shareBtn.disabled = true;
-  setStatus("Requesting microphone via Chrome’s permission dialog…");
-  const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
+  setStatus("Starting…");
 
-  if (result?.needsPermission) {
-    setStatus("Use Chrome’s Allow / Block microphone dialog.");
+  const { micGranted } = await chrome.storage.local.get({ micGranted: false });
+  if (!micGranted) {
+    // AI pages block mic prompts inside the float iframe.
+    // Open the toolbar popup so Chrome can show the real Allow/Block dialog.
+    try {
+      await chrome.action.openPopup();
+      setStatus("In the popup, click Start listening — Chrome will ask Allow/Block.");
+    } catch {
+      setStatus(
+        "Click the CallTogether icon in the toolbar → Start listening (Chrome mic dialog).",
+        true
+      );
+    }
     shareBtn.disabled = false;
     return;
   }
 
-  if (!result?.ok) {
-    setStatus(result?.error || "Could not start listening.", true);
+  const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
+  if (result?.needsPermission || !result?.ok) {
+    setStatus(
+      result?.error ||
+        "Click the CallTogether toolbar icon → Start listening for Chrome’s mic dialog.",
+      true
+    );
     shareBtn.disabled = false;
+    return;
   }
 }
 
@@ -88,7 +104,7 @@ chrome.runtime
   .catch(() => {});
 
 hintEl.textContent =
-  "Tip: use Start listening in the extension popup for Chrome’s normal mic Allow/Block dialog.";
+  "First time: toolbar icon → Start listening → Chrome Allow/Block. No model files needed.";
 renderTranscript();
 setStatus("Ready");
 setCapturingUi(false);

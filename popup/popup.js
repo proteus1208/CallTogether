@@ -32,17 +32,6 @@ async function refresh() {
   renderState(state || { capturing: false });
 }
 
-async function requestMicWithChromePrompt() {
-  // This runs in the extension popup (top-level), so Chrome shows the
-  // standard browser permission dialog: Allow / Block.
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: false,
-  });
-  stream.getTracks().forEach((track) => track.stop());
-  await chrome.storage.local.set({ micGranted: true });
-}
-
 floatToggle.addEventListener("change", async () => {
   showError("");
   const visible = floatToggle.checked;
@@ -62,9 +51,16 @@ startBtn.addEventListener("click", async () => {
   showError("");
   startBtn.disabled = true;
   try {
-    await requestMicWithChromePrompt();
+    // Native Chrome Allow/Block dialog (popup is a real top-level UI).
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+    stream.getTracks().forEach((track) => track.stop());
+    await chrome.storage.local.set({ micGranted: true });
+
     const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
-    if (!result?.ok && !result?.needsPermission) {
+    if (!result?.ok) {
       showError(result?.error || "Could not start listening.");
     }
   } catch (error) {
