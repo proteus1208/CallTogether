@@ -149,6 +149,30 @@ button.icon-btn svg {
   display: block;
 }
 
+button.icon-btn .icon-spinner {
+  display: none;
+}
+
+button.icon-btn.is-busy .icon-send {
+  display: none;
+}
+
+button.icon-btn.is-busy .icon-spinner {
+  display: block;
+  animation: ct-spin 0.7s linear infinite;
+}
+
+button.icon-btn.is-busy:disabled {
+  opacity: 1;
+  cursor: wait;
+}
+
+@keyframes ct-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 button.secondary {
   background: rgba(255, 255, 255, 0.18);
   color: var(--text);

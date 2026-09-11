@@ -18,6 +18,7 @@ let captureHostWindowId = null;
 let pendingStreamId = null;
 let lastPartialAt = 0;
 let utteranceEpoch = 0;
+let actionBusy = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,16 +67,21 @@ async function waitForUtteranceComplete({ timeoutMs = 10000 } = {}) {
   }
 }
 
+async function setActionBusy(busy, status) {
+  actionBusy = !!busy;
+  await broadcastState({
+    busy: actionBusy,
+    ...(status ? { status } : {}),
+  });
+}
+
 async function consumeTranscriptText() {
-  if (capturing) {
-    await broadcastState({ status: "Finalizing…" });
-  }
   await waitForUtteranceComplete();
   const text = [transcript, partial].filter(Boolean).join(" ").trim();
   transcript = "";
   partial = "";
   lastPartialAt = 0;
-  await broadcastState();
+  await broadcastState({ busy: actionBusy });
   return text;
 }
 
@@ -92,6 +98,7 @@ async function broadcastState(extra = {}) {
     capturing,
     transcript,
     partial,
+    busy: actionBusy,
     ...extra,
   };
 
@@ -312,7 +319,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "GET_STATE": {
-        sendResponse({ capturing, transcript, partial });
+        sendResponse({ capturing, transcript, partial, busy: actionBusy });
         break;
       }
       case "SHOW_PANEL": {
@@ -360,23 +367,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "SUBMIT_TRANSCRIPT": {
-        const text = await consumeTranscriptText();
-        if (!text) {
-          sendResponse({ ok: true, sent: false, empty: true });
-          break;
+        await setActionBusy(true, "Finalizing…");
+        try {
+          const text = await consumeTranscriptText();
+          if (!text) {
+            sendResponse({ ok: true, sent: false, empty: true });
+            break;
+          }
+          sendResponse(
+            await sendToActiveHttpTab({
+              type: "PASTE_TEXT",
+              text,
+              send: true,
+            })
+          );
+        } finally {
+          await setActionBusy(false);
         }
-        sendResponse(
-          await sendToActiveHttpTab({
-            type: "PASTE_TEXT",
-            text,
-            send: true,
-          })
-        );
         break;
       }
       case "CONSUME_TRANSCRIPT": {
-        const text = await consumeTranscriptText();
-        sendResponse({ ok: true, text });
+        await setActionBusy(true, "Finalizing…");
+        try {
+          const text = await consumeTranscriptText();
+          sendResponse({ ok: true, text });
+        } finally {
+          await setActionBusy(false);
+        }
         break;
       }
       case "CAPTURE_STATUS": {

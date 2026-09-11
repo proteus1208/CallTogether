@@ -19,6 +19,7 @@ const DEFAULT_HOTKEY = {
 
 let localFinal = "";
 let localPartial = "";
+let submitBusy = false;
 
 function formatHotkey(config) {
   const parts = [];
@@ -55,10 +56,19 @@ function renderTranscript() {
   }
 }
 
+function setSubmitBusy(busy) {
+  submitBusy = !!busy;
+  submitBtn.classList.toggle("is-busy", submitBusy);
+  submitBtn.disabled = submitBusy;
+  submitBtn.setAttribute("aria-busy", submitBusy ? "true" : "false");
+  submitBtn.title = submitBusy ? "Waiting…" : "Paste and send";
+}
+
 function setCapturingUi(capturing) {
   dotEl.classList.toggle("live", capturing);
   shareBtn.disabled = capturing;
   stopBtn.disabled = !capturing;
+  if (!submitBusy) submitBtn.disabled = false;
 }
 
 shareBtn.addEventListener("click", async () => {
@@ -94,8 +104,9 @@ clearBtn.addEventListener("click", async () => {
 });
 
 submitBtn.addEventListener("click", async () => {
+  if (submitBusy) return;
   setStatus("Waiting for speech…");
-  submitBtn.disabled = true;
+  setSubmitBusy(true);
   try {
     const result = await chrome.runtime.sendMessage({ type: "SUBMIT_TRANSCRIPT" });
     if (!result?.ok) {
@@ -109,7 +120,7 @@ submitBtn.addEventListener("click", async () => {
   } catch (error) {
     setStatus(error?.message || "Send failed", true);
   } finally {
-    submitBtn.disabled = false;
+    setSubmitBusy(false);
   }
 });
 
@@ -120,6 +131,10 @@ chrome.runtime.onMessage.addListener((message) => {
   if (typeof message.partial === "string") localPartial = message.partial;
   renderTranscript();
   setCapturingUi(!!message.capturing);
+
+  if (typeof message.busy === "boolean") {
+    setSubmitBusy(message.busy);
+  }
 
   if (message.error) setStatus(message.error, true);
   else if (message.status) setStatus(message.status);
@@ -134,6 +149,7 @@ chrome.runtime
     localPartial = state.partial || "";
     renderTranscript();
     setCapturingUi(!!state.capturing);
+    if (typeof state.busy === "boolean") setSubmitBusy(state.busy);
   })
   .catch(() => {});
 
