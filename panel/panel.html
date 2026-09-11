@@ -16,9 +16,13 @@
 
       <div class="body-row">
         <div class="col transcript-col">
-          <div class="col-label">Transcript</div>
+          <div class="col-head">
+            <div class="col-label">Transcript</div>
+            <div class="col-head-slot" aria-hidden="true"></div>
+          </div>
           <div class="transcript show-placeholder" id="transcript">
-            <span id="finalText"></span><span id="partialText" class="partial"></span>
+            <div class="session-list" id="transcriptSessions"></div>
+            <div class="session-item partial" id="partialText"></div>
           </div>
         </div>
 
@@ -51,7 +55,9 @@
               </div>
             </div>
           </div>
-          <div class="translate-text show-placeholder" id="translateText"></div>
+          <div class="translate-text show-placeholder" id="translateText">
+            <div class="session-list" id="translateSessions"></div>
+          </div>
         </div>
       </div>
 

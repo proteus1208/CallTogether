@@ -135,7 +135,42 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 18px;
+  min-height: 24px;
+  flex: 0 0 24px;
+}
+
+.col-head-slot {
+  width: 1px;
+  height: 22px;
+  flex: 0 0 auto;
+  visibility: hidden;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.session-item {
+  margin: 0;
+  padding: 0 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.session-item + .session-item {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.session-item.partial {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.session-item.partial:empty {
+  display: none;
 }
 
 .transcript,
@@ -150,8 +185,6 @@ body {
   backdrop-filter: blur(4px) saturate(1.1);
   -webkit-backdrop-filter: blur(4px) saturate(1.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  white-space: pre-wrap;
-  word-break: break-word;
   font-size: 13px;
   line-height: 1.45;
   color: var(--text);
@@ -189,10 +222,22 @@ body {
   background-clip: content-box;
 }
 
-.transcript:empty::before,
 .transcript.show-placeholder::before {
   content: "Transcript…";
   color: var(--muted);
+}
+
+.transcript:not(.show-placeholder)::before {
+  content: none;
+}
+
+.translate-pane .translate-text.show-placeholder::before {
+  content: "Translation…";
+  color: var(--muted);
+}
+
+.translate-pane .translate-text:not(.show-placeholder)::before {
+  content: none;
 }
 
 .translate-pane {
@@ -225,15 +270,9 @@ body {
   overflow: visible;
 }
 
-.translate-text:empty::before,
 .translate-text.show-placeholder::before {
   content: "Translation…";
   color: var(--muted);
-}
-
-.partial {
-  color: var(--muted);
-  font-style: italic;
 }
 
 .lang-picker {

@@ -21,8 +21,8 @@ let pendingStreamId = null;
 let lastPartialAt = 0;
 let utteranceEpoch = 0;
 let actionBusy = false;
-let scriptArchive = "";
-let translatedText = "";
+let scriptSessions = [];
+let translatedSessions = [];
 let translateOpen = false;
 let translateTarget = DEFAULT_SETTINGS.translateTarget;
 let translateInFlight = false;
@@ -72,7 +72,7 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
     const leftover = partial.trim();
     partial = "";
     transcript = transcript ? `${transcript} ${leftover}` : leftover;
-    appendScriptArchive(leftover);
+    appendScriptSession(leftover);
     await broadcastState({ busy: actionBusy, status: "Speech session timed out" });
     if (translateOpen) {
       translateSpeechSession(leftover).catch(() => {});
@@ -90,18 +90,44 @@ async function setActionBusy(busy, status) {
   });
 }
 
-function trimToLastWords(text, maxWords = SCRIPT_WORD_LIMIT) {
-  const words = String(text || "")
+function wordCount(text) {
+  return String(text || "")
     .trim()
     .split(/\s+/)
-    .filter(Boolean);
-  if (words.length <= maxWords) return words.join(" ");
-  return words.slice(-maxWords).join(" ");
+    .filter(Boolean).length;
 }
 
-function appendScriptArchive(chunk) {
-  const next = [scriptArchive, chunk].filter(Boolean).join(" ").trim();
-  scriptArchive = trimToLastWords(next);
+function sessionsWordCount(sessions) {
+  return sessions.reduce((sum, item) => sum + wordCount(item), 0);
+}
+
+function trimSessionsToWordLimit() {
+  while (
+    scriptSessions.length > 1 &&
+    sessionsWordCount(scriptSessions) > SCRIPT_WORD_LIMIT
+  ) {
+    scriptSessions.shift();
+    if (translatedSessions.length) translatedSessions.shift();
+  }
+  // Keep arrays aligned when translations lag behind.
+  while (translatedSessions.length > scriptSessions.length) {
+    translatedSessions.shift();
+  }
+}
+
+function appendScriptSession(chunk) {
+  const text = String(chunk || "").trim();
+  if (!text) return;
+  scriptSessions.push(text);
+  trimSessionsToWordLimit();
+}
+
+function joinedScriptArchive() {
+  return scriptSessions.join(" ").trim();
+}
+
+function joinedTranslatedText() {
+  return translatedSessions.join(" ").trim();
 }
 
 async function translateWithGoogle(text, target = translateTarget) {
@@ -154,11 +180,9 @@ async function translateSpeechSession(chunk) {
   if (!translateOpen || !source) return;
 
   try {
-    const piece = await translateWithGoogle(source, translateTarget);
-    if (!piece) return;
-    translatedText = trimToLastWords(
-      [translatedText, piece].filter(Boolean).join(" ").trim()
-    );
+    const piece = (await translateWithGoogle(source, translateTarget)).trim();
+    translatedSessions.push(piece || source);
+    trimSessionsToWordLimit();
     await broadcastState();
   } catch (error) {
     await broadcastState({
@@ -174,18 +198,21 @@ async function retranslateAll() {
     return;
   }
 
-  const source = trimToLastWords(scriptArchive);
-  if (!source) {
-    translatedText = "";
+  if (!scriptSessions.length) {
+    translatedSessions = [];
     await broadcastState();
     return;
   }
 
   translateInFlight = true;
   try {
-    translatedText = trimToLastWords(
-      await translateWithGoogle(source, translateTarget)
-    );
+    const next = [];
+    for (const session of scriptSessions) {
+      const piece = (await translateWithGoogle(session, translateTarget)).trim();
+      next.push(piece || session);
+    }
+    translatedSessions = next;
+    trimSessionsToWordLimit();
     await broadcastState({ status: "Translated" });
   } catch (error) {
     await broadcastState({
@@ -208,7 +235,7 @@ async function consumeTranscriptText() {
   transcript = "";
   partial = "";
   lastPartialAt = 0;
-  // Keep scriptArchive + translatedText (not cleared on paste/send).
+  // Keep scriptSessions + translatedSessions (not cleared on paste/send).
   await broadcastState({ busy: actionBusy });
   return text;
 }
@@ -229,6 +256,8 @@ chrome.runtime.onInstalled.addListener(async () => {
     "scriptArchive",
     "translatedText",
     "translateOpen",
+    "scriptSessions",
+    "translatedSessions",
   ]);
   await chrome.storage.local.set({
     floatingVisible: false,
@@ -252,8 +281,10 @@ async function broadcastState(extra = {}) {
     transcript,
     partial,
     busy: actionBusy,
-    scriptArchive,
-    translatedText,
+    scriptSessions,
+    translatedSessions,
+    scriptArchive: joinedScriptArchive(),
+    translatedText: joinedTranslatedText(),
     translateOpen,
     translateTarget,
     ...extra,
@@ -481,8 +512,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           transcript,
           partial,
           busy: actionBusy,
-          scriptArchive,
-          translatedText,
+          scriptSessions,
+          translatedSessions,
+          scriptArchive: joinedScriptArchive(),
+          translatedText: joinedTranslatedText(),
           translateOpen,
           translateTarget,
         });
@@ -538,7 +571,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           status: translateOpen ? "Translate open" : "Translate closed",
         });
         // On first open with existing speech, fill translation once.
-        if (translateOpen && scriptArchive && !translatedText.trim()) {
+        if (translateOpen && scriptSessions.length && !translatedSessions.length) {
           await retranslateAll();
         }
         sendResponse({ ok: true, translateOpen });
@@ -611,7 +644,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           transcript = transcript ? `${transcript} ${chunk}` : chunk;
           partial = "";
           utteranceEpoch += 1;
-          appendScriptArchive(chunk);
+          appendScriptSession(chunk);
           await broadcastState();
           // Translate only this speech session (append), never re-run the whole log.
           if (translateOpen) {

@@ -5,11 +5,12 @@ const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
 const translateBtn = document.getElementById("translateBtn");
 const submitBtn = document.getElementById("submitBtn");
-const finalTextEl = document.getElementById("finalText");
-const partialTextEl = document.getElementById("partialText");
 const transcriptEl = document.getElementById("transcript");
+const transcriptSessionsEl = document.getElementById("transcriptSessions");
+const partialTextEl = document.getElementById("partialText");
 const translatePane = document.getElementById("translatePane");
 const translateTextEl = document.getElementById("translateText");
+const translateSessionsEl = document.getElementById("translateSessions");
 const hotkeyBadge = document.getElementById("hotkeyBadge");
 const langBtn = document.getElementById("langBtn");
 const langBtnLabel = document.getElementById("langBtnLabel");
@@ -140,7 +141,8 @@ const LANGUAGES = [
 
 let localFinal = "";
 let localPartial = "";
-let localTranslated = "";
+let localSessions = [];
+let localTranslatedSessions = [];
 let submitBusy = false;
 let translateOpen = false;
 let translateTarget = "zh-CN";
@@ -235,12 +237,29 @@ async function selectLanguage(code) {
   }
 }
 
+function renderSessionList(container, sessions) {
+  if (!container) return;
+  container.innerHTML = "";
+  for (const text of sessions) {
+    const item = document.createElement("div");
+    item.className = "session-item";
+    item.textContent = text;
+    container.appendChild(item);
+  }
+}
+
 function renderTranscript() {
   const stick = isPinnedToBottom(transcriptEl);
-  const hasText = Boolean(localFinal.trim() || localPartial.trim());
-  transcriptEl.classList.toggle("show-placeholder", !hasText);
-  finalTextEl.textContent = localFinal.trim() ? `${localFinal.trim()} ` : "";
+  const sessions =
+    localSessions.length > 0
+      ? localSessions
+      : localFinal.trim()
+        ? [localFinal.trim()]
+        : [];
+  renderSessionList(transcriptSessionsEl, sessions);
   partialTextEl.textContent = localPartial.trim();
+  const hasText = Boolean(sessions.length || localPartial.trim());
+  transcriptEl.classList.toggle("show-placeholder", !hasText);
   if (stick) {
     transcriptEl.scrollTop = transcriptEl.scrollHeight;
   }
@@ -248,9 +267,9 @@ function renderTranscript() {
 
 function renderTranslation() {
   const stick = isPinnedToBottom(translateTextEl);
-  const hasText = Boolean(localTranslated.trim());
+  renderSessionList(translateSessionsEl, localTranslatedSessions);
+  const hasText = localTranslatedSessions.length > 0;
   translateTextEl.classList.toggle("show-placeholder", !hasText);
-  translateTextEl.textContent = localTranslated.trim();
   if (stick) {
     translateTextEl.scrollTop = translateTextEl.scrollHeight;
   }
@@ -382,8 +401,14 @@ chrome.runtime.onMessage.addListener((message) => {
 
   if (typeof message.transcript === "string") localFinal = message.transcript;
   if (typeof message.partial === "string") localPartial = message.partial;
-  if (typeof message.translatedText === "string") {
-    localTranslated = message.translatedText;
+  if (Array.isArray(message.scriptSessions)) {
+    localSessions = message.scriptSessions.filter(Boolean);
+  }
+  if (Array.isArray(message.translatedSessions)) {
+    localTranslatedSessions = message.translatedSessions.filter(Boolean);
+  } else if (typeof message.translatedText === "string" && message.translatedText) {
+    // fallback for older payloads
+    localTranslatedSessions = [message.translatedText];
   }
   if (typeof message.translateTarget === "string") {
     setLanguageLabel(message.translateTarget);
@@ -410,7 +435,12 @@ chrome.runtime
     if (!state) return;
     localFinal = state.transcript || "";
     localPartial = state.partial || "";
-    localTranslated = state.translatedText || "";
+    localSessions = Array.isArray(state.scriptSessions)
+      ? state.scriptSessions.filter(Boolean)
+      : [];
+    localTranslatedSessions = Array.isArray(state.translatedSessions)
+      ? state.translatedSessions.filter(Boolean)
+      : [];
     if (state.translateTarget) setLanguageLabel(state.translateTarget);
     renderTranscript();
     renderTranslation();
