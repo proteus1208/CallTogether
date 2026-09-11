@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.4.6",
+  "version": "1.4.7",
   "description": "Capture call/tab/system audio, live floating transcript, hotkey-paste into AI chat. Local STT, no microphone.",
   "permissions": [
     "storage",

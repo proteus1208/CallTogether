@@ -1,13 +1,15 @@
 :root {
   color-scheme: light;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-  --bg: #0f1c17;
-  --text: #e7f3ec;
-  --muted: #9bb5a8;
-  --accent: #3ecf8e;
-  --accent-text: #062216;
-  --danger: #ff8b82;
-  --line: rgba(255, 255, 255, 0.12);
+  --bg: #f4f7fb;
+  --text: #1a2330;
+  --muted: #5b6b7c;
+  --accent: #1f9d6c;
+  --accent-text: #ffffff;
+  --danger: #d64545;
+  --line: rgba(26, 35, 48, 0.1);
+  --glass: rgba(255, 255, 255, 0.75);
+  --radius: 16px;
 }
 
 * {
@@ -17,17 +19,27 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(160deg, #0b1511, var(--bg));
+  background:
+    radial-gradient(260px 160px at 100% 0%, rgba(31, 157, 108, 0.14), transparent 55%),
+    linear-gradient(160deg, #f8fbff, var(--bg));
   color: var(--text);
 }
 
 main {
+  margin: 16px;
   padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 32px rgba(26, 35, 48, 0.08);
 }
 
 h1 {
   margin: 0 0 8px;
   font-size: 1.15rem;
+  color: var(--text);
 }
 
 .brand {
@@ -68,23 +80,26 @@ p {
 button {
   appearance: none;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 10px 12px;
   font-weight: 700;
   cursor: pointer;
   background: var(--accent);
   color: var(--accent-text);
+  box-shadow: 0 6px 16px rgba(31, 157, 108, 0.22);
 }
 
 button.secondary {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.85);
   color: var(--text);
   border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(26, 35, 48, 0.05);
 }
 
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .hint {

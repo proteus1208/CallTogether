@@ -1,13 +1,17 @@
 :root {
-  color-scheme: dark;
-  --bg: #0d1914;
-  --text: #e8f5ee;
-  --muted: #9bb5a8;
-  --accent: #3ecf8e;
-  --accent-text: #062216;
-  --danger: #ff8b82;
-  --line: rgba(255, 255, 255, 0.1);
-  --panel: rgba(255, 255, 255, 0.035);
+  color-scheme: light;
+  --bg: #f4f7fb;
+  --text: #1a2330;
+  --muted: #5b6b7c;
+  --accent: #1f9d6c;
+  --accent-soft: rgba(31, 157, 108, 0.12);
+  --accent-text: #ffffff;
+  --danger: #d64545;
+  --line: rgba(26, 35, 48, 0.1);
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.88);
+  --shadow: 0 12px 32px rgba(26, 35, 48, 0.08);
+  --radius: 16px;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
@@ -19,8 +23,9 @@ body {
   margin: 0;
   width: 320px;
   background:
-    radial-gradient(280px 160px at 100% -10%, rgba(62, 207, 142, 0.18), transparent 55%),
-    linear-gradient(165deg, #0a1410, var(--bg));
+    radial-gradient(240px 140px at 100% 0%, rgba(31, 157, 108, 0.14), transparent 55%),
+    radial-gradient(200px 120px at 0% 100%, rgba(90, 140, 255, 0.1), transparent 50%),
+    linear-gradient(165deg, #f8fbff, var(--bg));
   color: var(--text);
 }
 
@@ -46,6 +51,7 @@ header h1 {
   font-size: 1.15rem;
   line-height: 1.25;
   font-weight: 700;
+  color: var(--text);
 }
 
 .lede {
@@ -55,12 +61,20 @@ header h1 {
   line-height: 1.45;
 }
 
-.state {
+.state,
+.toggle-row,
+.steps {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow);
+}
+
+.state {
   padding: 10px 12px;
   margin-bottom: 10px;
-  background: var(--panel);
 }
 
 .row {
@@ -82,15 +96,13 @@ header h1 {
   gap: 12px;
   margin-bottom: 12px;
   padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--panel);
   cursor: pointer;
 }
 
 .toggle-row strong {
   display: block;
   font-size: 0.9rem;
+  color: var(--text);
 }
 
 .toggle-row small {
@@ -107,7 +119,7 @@ header h1 {
   margin: 0;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(26, 35, 48, 0.12);
   position: relative;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -122,6 +134,7 @@ header h1 {
   height: 18px;
   border-radius: 50%;
   background: #fff;
+  box-shadow: 0 1px 4px rgba(26, 35, 48, 0.18);
   transition: transform 0.15s ease;
 }
 
@@ -156,9 +169,6 @@ button.full {
 .steps {
   margin: 12px 0 0;
   padding: 10px 10px 10px 28px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--panel);
   color: var(--muted);
   font-size: 0.75rem;
   line-height: 1.45;
@@ -182,7 +192,7 @@ button.full {
 button {
   appearance: none;
   border: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 11px 12px;
   font-weight: 650;
   cursor: pointer;
@@ -190,6 +200,7 @@ button {
   color: var(--accent-text);
   text-align: left;
   width: 100%;
+  box-shadow: 0 6px 16px rgba(31, 157, 108, 0.22);
 }
 
 button .btn-title {
@@ -202,13 +213,16 @@ button .btn-sub {
   margin-top: 2px;
   font-size: 0.72rem;
   font-weight: 500;
-  opacity: 0.75;
+  opacity: 0.85;
 }
 
 button.secondary {
-  background: transparent;
+  background: var(--glass-strong);
   color: var(--text);
   border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 button.secondary .btn-sub {
@@ -222,11 +236,13 @@ button.ghost {
   border: 1px solid transparent;
   text-align: center;
   padding: 9px 8px;
+  box-shadow: none;
 }
 
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .error {

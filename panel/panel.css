@@ -1,12 +1,14 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --bg: transparent;
-  --text: #e7f3ec;
-  --muted: #9bb5a8;
-  --accent: #3ecf8e;
-  --accent-text: #062216;
-  --danger: #ff8b82;
-  --line: rgba(255, 255, 255, 0.12);
+  --text: #1a2330;
+  --muted: #5b6b7c;
+  --accent: #1f9d6c;
+  --accent-text: #ffffff;
+  --danger: #d64545;
+  --line: rgba(26, 35, 48, 0.1);
+  --glass: rgba(255, 255, 255, 0.55);
+  --radius: 14px;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
@@ -43,13 +45,13 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #7f8f87;
+  background: #9aa8b5;
   flex: 0 0 auto;
 }
 
 .dot.live {
   background: var(--accent);
-  box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.18);
+  box-shadow: 0 0 0 4px rgba(31, 157, 108, 0.18);
 }
 
 .status {
@@ -68,13 +70,17 @@ body {
   min-height: 0;
   overflow: auto;
   padding: 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius);
+  background: var(--glass);
   border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(26, 35, 48, 0.05);
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 13px;
   line-height: 1.45;
+  color: var(--text);
 }
 
 .transcript:empty::before,
@@ -97,30 +103,36 @@ body {
 button {
   appearance: none;
   border: 0;
-  border-radius: 9px;
+  border-radius: 12px;
   padding: 9px 6px;
   font-size: 12px;
   font-weight: 650;
   cursor: pointer;
   background: var(--accent);
   color: var(--accent-text);
+  box-shadow: 0 4px 12px rgba(31, 157, 108, 0.2);
 }
 
 button.secondary {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.75);
   color: var(--text);
   border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(26, 35, 48, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 button.ghost {
   background: transparent;
   color: var(--muted);
   border: 1px solid transparent;
+  box-shadow: none;
 }
 
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .hint {

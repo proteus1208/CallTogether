@@ -8,15 +8,15 @@
   gap: 8px !important;
   padding: 12px !important;
   margin: 0 !important;
-  border-radius: 16px !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  background:
-    linear-gradient(165deg, rgba(18, 36, 28, 0.98), rgba(10, 20, 16, 0.98)) !important;
-  color: #e7f3ec !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(26, 35, 48, 0.1) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: #1a2330 !important;
   box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(62, 207, 142, 0.08) !important;
-  backdrop-filter: blur(12px);
+    0 18px 48px rgba(26, 35, 48, 0.12),
+    0 2px 8px rgba(26, 35, 48, 0.06) !important;
+  backdrop-filter: blur(22px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.2) !important;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif !important;
   font-size: 13px !important;
   line-height: 1.4 !important;
@@ -46,7 +46,7 @@
 }
 
 #calltogether-float-root.ct-dragging {
-  opacity: 0.94 !important;
+  opacity: 0.96 !important;
   cursor: grabbing !important;
 }
 
@@ -77,12 +77,13 @@
 #calltogether-float-root .ct-title strong {
   font-weight: 700 !important;
   letter-spacing: 0.01em !important;
+  color: #1a2330 !important;
 }
 
 #calltogether-float-root .ct-tagline {
   display: block !important;
   margin-top: 1px !important;
-  color: #9bb5a8 !important;
+  color: #5b6b7c !important;
   font-size: 10px !important;
   font-weight: 500 !important;
   white-space: nowrap !important;
@@ -94,27 +95,29 @@
   width: 8px !important;
   height: 8px !important;
   border-radius: 50% !important;
-  background: #7f8f87 !important;
+  background: #9aa8b5 !important;
   display: inline-block !important;
   flex: 0 0 auto !important;
 }
 
 #calltogether-float-root .ct-dot.ct-live,
 #calltogether-float-root.ct-capturing .ct-dot {
-  background: #3ecf8e !important;
-  box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.18) !important;
+  background: #1f9d6c !important;
+  box-shadow: 0 0 0 4px rgba(31, 157, 108, 0.18) !important;
 }
 
 #calltogether-float-root .ct-actions button {
   appearance: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  background: transparent !important;
-  color: inherit !important;
-  border-radius: 8px !important;
+  border: 1px solid rgba(26, 35, 48, 0.1) !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  color: #1a2330 !important;
+  border-radius: 10px !important;
   padding: 4px 8px !important;
   cursor: pointer !important;
   font-size: 12px !important;
   line-height: 1 !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
 #calltogether-float-root .ct-frame {
@@ -122,13 +125,13 @@
   width: 100% !important;
   min-height: 0 !important;
   border: 0 !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   background: transparent !important;
   display: block !important;
 }
 
 #calltogether-float-root .ct-footer {
-  color: #9bb5a8 !important;
+  color: #5b6b7c !important;
   font-size: 11px !important;
   flex: 0 0 auto !important;
   display: block !important;
@@ -138,10 +141,10 @@
 #calltogether-float-root kbd {
   display: inline-block !important;
   padding: 1px 5px !important;
-  border-radius: 5px !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(26, 35, 48, 0.12) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
   font-size: 11px !important;
-  color: #e7f3ec !important;
+  color: #1a2330 !important;
 }
