@@ -22,7 +22,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({
     floatingVisible: true,
     panelCollapsed: false,
-    micGranted: false,
   });
 });
 
@@ -102,8 +101,9 @@ async function setupOffscreenDocument() {
   if (await hasOffscreenDocument()) return;
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_URL,
-    reasons: ["USER_MEDIA"],
-    justification: "Run Chrome Speech recognition with microphone access.",
+    reasons: ["USER_MEDIA", "IFRAME_SCRIPTING"],
+    justification:
+      "Capture shared tab/system audio and run local speech recognition.",
   });
 }
 
@@ -113,26 +113,18 @@ async function closeOffscreenDocument() {
   }
 }
 
-async function startListening() {
+async function startCaptureWithStreamId(streamId) {
   await setupOffscreenDocument();
   const result = await chrome.runtime.sendMessage({
-    type: "OFFSCREEN_START_SPEECH",
+    type: "OFFSCREEN_START_CAPTURE",
     target: "offscreen",
+    streamId,
   });
 
   if (!result?.ok) {
     capturing = false;
-    if (result?.needsMicPrompt) {
-      await chrome.storage.local.set({ micGranted: false });
-      return {
-        ok: false,
-        needsPermission: true,
-        error:
-          "Open the CallTogether popup and click Start listening so Chrome can show the microphone Allow/Block dialog.",
-      };
-    }
     await broadcastState({
-      error: result?.error || "Could not start speech recognition.",
+      error: result?.error || "Could not start tab audio capture.",
     });
     return { ok: false, error: result?.error };
   }
@@ -145,7 +137,7 @@ async function stopCapture() {
   partial = "";
   try {
     await chrome.runtime.sendMessage({
-      type: "OFFSCREEN_STOP_SPEECH",
+      type: "OFFSCREEN_STOP_CAPTURE",
       target: "offscreen",
     });
   } catch {
@@ -180,8 +172,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse(await sendToActiveHttpTab({ type: "HIDE_PANEL" }));
         break;
       }
-      case "START_LISTENING": {
-        sendResponse(await startListening());
+      case "START_TAB_CAPTURE": {
+        sendResponse(await startCaptureWithStreamId(message.streamId));
         break;
       }
       case "STOP_CAPTURE": {
@@ -200,9 +192,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, text });
         break;
       }
+      case "CAPTURE_STATUS": {
+        await broadcastState({ status: message.text });
+        sendResponse({ ok: true });
+        break;
+      }
       case "CAPTURE_STARTED": {
         capturing = true;
-        await chrome.storage.local.set({ micGranted: true });
         await broadcastState();
         sendResponse({ ok: true });
         break;
@@ -226,12 +222,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       case "CAPTURE_ERROR": {
         capturing = false;
         partial = "";
-        if (
-          message.error?.toLowerCase?.().includes("microphone") ||
-          message.error?.toLowerCase?.().includes("permission")
-        ) {
-          await chrome.storage.local.set({ micGranted: false });
-        }
         await broadcastState({ error: message.error || "Capture failed." });
         sendResponse({ ok: true });
         break;

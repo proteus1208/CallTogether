@@ -11,8 +11,8 @@
       <header>
         <h1>CallTogether Settings</h1>
         <p>
-          Free Chrome Speech recognition (no paid API, no local Vosk model).
-          Configure the paste hotkey only.
+          Captures <strong>tab/system audio output</strong> (not the microphone),
+          transcribes locally, and pastes into AI chat with a hotkey.
         </p>
       </header>
 
@@ -41,12 +41,11 @@
         </section>
 
         <section>
-          <h2>Why not Vosk?</h2>
+          <h2>How capture works</h2>
           <p class="hint">
-            Chrome MV3 extensions cannot use <code>unsafe-eval</code>. Vosk’s
-            worker needs that, so model load fails even when the
-            <code>.tar.gz</code> is already on disk. CallTogether now uses the
-            built-in Web Speech API instead (no model download).
+            Use <strong>Share tab audio</strong> in the popup. Chrome’s share
+            picker appears — select the call tab and enable audio. Speech is
+            recognized locally (no microphone device required).
           </p>
         </section>
 

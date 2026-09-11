@@ -16,8 +16,8 @@ function showError(message) {
   errorEl.textContent = message;
 }
 
-function renderState({ capturing, error }) {
-  statusLabel.textContent = capturing ? "Listening" : "Idle";
+function renderState({ capturing, error, status }) {
+  statusLabel.textContent = capturing ? "Capturing tab audio" : status || "Idle";
   startBtn.disabled = !!capturing;
   stopBtn.disabled = !capturing;
   if (error) showError(error);
@@ -30,6 +30,21 @@ async function refresh() {
   ]);
   floatToggle.checked = local.floatingVisible !== false;
   renderState(state || { capturing: false });
+}
+
+function chooseTabAudio() {
+  return new Promise((resolve) => {
+    try {
+      // Native Chrome picker: choose a tab/window/screen and include audio.
+      chrome.desktopCapture.chooseDesktopMedia(
+        ["tab", "window", "screen", "audio"],
+        (streamId) => resolve(streamId || null)
+      );
+    } catch (error) {
+      console.error(error);
+      resolve(null);
+    }
+  });
 }
 
 floatToggle.addEventListener("change", async () => {
@@ -50,31 +65,26 @@ floatToggle.addEventListener("change", async () => {
 startBtn.addEventListener("click", async () => {
   showError("");
   startBtn.disabled = true;
-  try {
-    // Native Chrome Allow/Block dialog (popup is a real top-level UI).
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: false,
-    });
-    stream.getTracks().forEach((track) => track.stop());
-    await chrome.storage.local.set({ micGranted: true });
+  statusLabel.textContent = "Pick a tab…";
 
-    const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
-    if (!result?.ok) {
-      showError(result?.error || "Could not start listening.");
-    }
-  } catch (error) {
-    await chrome.storage.local.set({ micGranted: false });
-    const denied =
-      error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError";
-    showError(
-      denied
-        ? "You blocked the microphone in Chrome’s permission dialog."
-        : error?.message || "Microphone permission failed."
-    );
-  } finally {
+  const streamId = await chooseTabAudio();
+  if (!streamId) {
+    showError("Share cancelled. Pick the call tab and enable audio.");
     await refresh();
+    return;
   }
+
+  const result = await chrome.runtime.sendMessage({
+    type: "START_TAB_CAPTURE",
+    streamId,
+  });
+
+  if (!result?.ok) {
+    showError(result?.error || "Could not capture tab audio.");
+  }
+
+  // Popup can close; capture continues in offscreen.
+  window.close();
 });
 
 stopBtn.addEventListener("click", async () => {

@@ -70,7 +70,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.3.4`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.4.0`;
   hotkeyEl = shellEl.querySelector("[data-hotkey]");
 
   (document.body || document.documentElement).appendChild(shellEl);

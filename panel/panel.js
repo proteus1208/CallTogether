@@ -29,41 +29,16 @@ function setCapturingUi(capturing) {
   stopBtn.disabled = !capturing;
 }
 
-async function startCapture() {
-  shareBtn.disabled = true;
-  setStatus("Starting…");
-
-  const { micGranted } = await chrome.storage.local.get({ micGranted: false });
-  if (!micGranted) {
-    // AI pages block mic prompts inside the float iframe.
-    // Open the toolbar popup so Chrome can show the real Allow/Block dialog.
-    try {
-      await chrome.action.openPopup();
-      setStatus("In the popup, click Start listening — Chrome will ask Allow/Block.");
-    } catch {
-      setStatus(
-        "Click the CallTogether icon in the toolbar → Start listening (Chrome mic dialog).",
-        true
-      );
-    }
-    shareBtn.disabled = false;
-    return;
-  }
-
-  const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
-  if (result?.needsPermission || !result?.ok) {
+shareBtn.addEventListener("click", async () => {
+  setStatus("Open the toolbar popup → Share tab audio (Chrome picker).");
+  try {
+    await chrome.action.openPopup();
+  } catch {
     setStatus(
-      result?.error ||
-        "Click the CallTogether toolbar icon → Start listening for Chrome’s mic dialog.",
+      "Click the CallTogether toolbar icon → Share tab audio. Choose the call tab + enable audio.",
       true
     );
-    shareBtn.disabled = false;
-    return;
   }
-}
-
-shareBtn.addEventListener("click", () => {
-  startCapture();
 });
 
 stopBtn.addEventListener("click", async () => {
@@ -89,7 +64,8 @@ chrome.runtime.onMessage.addListener((message) => {
   setCapturingUi(!!message.capturing);
 
   if (message.error) setStatus(message.error, true);
-  else if (message.capturing) setStatus("Listening…");
+  else if (message.status) setStatus(message.status);
+  else if (message.capturing) setStatus("Listening to shared tab audio…");
 });
 
 chrome.runtime
@@ -104,7 +80,7 @@ chrome.runtime
   .catch(() => {});
 
 hintEl.textContent =
-  "First time: toolbar icon → Start listening → Chrome Allow/Block. No model files needed.";
+  "Captures a tab’s speaker output (not your mic). Use toolbar → Share tab audio.";
 renderTranscript();
-setStatus("Ready");
+setStatus("Ready — share the call tab’s audio");
 setCapturingUi(false);
