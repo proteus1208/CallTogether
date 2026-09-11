@@ -10,7 +10,7 @@
     <div class="panel">
       <div class="status-row">
         <span class="dot" data-dot></span>
-        <p id="status" class="status">Ready — start capture from the toolbar popup</p>
+        <p id="status" class="status">Ready — choose a sound source</p>
       </div>
 
       <div class="transcript show-placeholder" id="transcript">
@@ -24,10 +24,16 @@
       </div>
 
       <p class="hint" id="hint">
-        Local STT · no mic · hotkey pastes into the focused AI input
+        Enable audio in Chrome’s dialog · hotkey pastes into AI chat
       </p>
     </div>
 
+    <iframe
+      id="sandbox"
+      src="../sandbox/transcribe.html"
+      style="display: none; width: 0; height: 0; border: 0"
+      aria-hidden="true"
+    ></iframe>
     <script type="module" src="panel.js"></script>
   </body>
 </html>

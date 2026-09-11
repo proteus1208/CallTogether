@@ -144,6 +144,11 @@ async function stopCapture() {
   } catch {
     // ignore
   }
+  try {
+    await chrome.runtime.sendMessage({ type: "CAPTURE_PAGE_STOP" });
+  } catch {
+    // ignore
+  }
   await closeOffscreenDocument();
   await broadcastState();
   return { ok: true };
@@ -175,6 +180,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "START_TAB_CAPTURE": {
         sendResponse(await startCaptureWithStreamId(message.streamId));
+        break;
+      }
+      case "PANEL_START_CAPTURE": {
+        // Panel iframe also receives this runtime message and starts capture.
+        // Just ensure the float is visible — do not rebroadcast (avoids loops).
+        await chrome.storage.local.set({ floatingVisible: true });
+        await sendToActiveHttpTab({ type: "SHOW_PANEL" });
+        sendResponse({ ok: true });
         break;
       }
       case "STOP_CAPTURE": {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.4.9",
+  "version": "1.5.0",
   "description": "Capture call/tab/system audio, live floating transcript, hotkey-paste into AI chat. Local STT, no microphone.",
   "permissions": [
     "storage",
@@ -48,7 +48,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["panel/*"],
+      "resources": ["panel/*", "sandbox/*", "vendor/vosk/*", "models/*"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ]
