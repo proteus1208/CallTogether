@@ -105,15 +105,8 @@ body {
   gap: 4px;
 }
 
-/* Fixed left column: fills parent when closed; stays the same px when open. */
+/* Keep left column the same width whether translate pane is open or collapsed. */
 .transcript-col {
-  flex: 0 0 auto;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-}
-
-.panel.translate-open .transcript-col {
   flex: 0 0 var(--transcript-w);
   width: var(--transcript-w);
   min-width: var(--transcript-w);
