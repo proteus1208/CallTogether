@@ -243,29 +243,21 @@ function renderSessionList(container, sessions, { checkpoint = null } = {}) {
   if (!container) return;
   container.innerHTML = "";
   const list = Array.isArray(sessions) ? sessions : [];
+  // Only show the mark when there is content after it (not at the bottom).
+  const showMark =
+    checkpoint != null && checkpoint > 0 && checkpoint < list.length;
+
   for (let i = 0; i < list.length; i += 1) {
     const item = document.createElement("div");
     item.className = "session-item";
     item.textContent = list[i];
     container.appendChild(item);
-    if (checkpoint != null && checkpoint > 0 && i === checkpoint - 1) {
+    if (showMark && i === checkpoint - 1) {
       const mark = document.createElement("div");
       mark.className = "paste-checkpoint";
       mark.title = "Last paste point";
       container.appendChild(mark);
     }
-  }
-  // If translations lag behind, still show the mark at the end when pasted past this list.
-  if (
-    checkpoint != null &&
-    checkpoint > 0 &&
-    list.length > 0 &&
-    checkpoint > list.length
-  ) {
-    const mark = document.createElement("div");
-    mark.className = "paste-checkpoint";
-    mark.title = "Last paste point";
-    container.appendChild(mark);
   }
 }
 

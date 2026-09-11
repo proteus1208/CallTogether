@@ -170,13 +170,18 @@ body {
   padding-top: 8px;
 }
 
+/* No session split directly under the paste checkpoint. */
+.paste-checkpoint + .session-item {
+  border-top: none;
+  padding-top: 8px;
+}
+
 .paste-checkpoint {
-  height: 0;
-  margin: 4px 0 8px;
-  border-top: 1px solid #2aa86f;
-  box-shadow:
-    0 0 4px rgba(42, 168, 111, 0.55),
-    0 0 10px rgba(42, 168, 111, 0.28);
+  height: 1px;
+  margin: 6px 0;
+  border: 0;
+  background: #2aa86f;
+  box-shadow: 0 0 4px rgba(42, 168, 111, 0.4);
   flex: 0 0 auto;
 }
 
