@@ -10,7 +10,20 @@
     <div class="panel" id="panelRoot">
       <div class="status-row">
         <span class="dot" data-dot></span>
-        <p id="status" class="status">Ready</p>
+        <div class="status-stack">
+          <p id="status" class="status">Ready</p>
+          <div
+            id="sttProgress"
+            class="stt-progress"
+            hidden
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <div class="stt-progress-fill" id="sttProgressFill"></div>
+          </div>
+        </div>
         <kbd id="hotkeyBadge" class="hotkey" title="Paste hotkey">Alt+W</kbd>
       </div>
 

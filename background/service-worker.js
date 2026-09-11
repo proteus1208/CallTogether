@@ -49,6 +49,7 @@ const LIVE_TRANSLATE_GAP_MS = 5000;
 let sttLanguage = "en";
 let sttInstalled = defaultInstalledCodes();
 let sttInstallBusy = null;
+let sttInstallProgress = 0;
 
 /** Hold Vosk finals briefly so a short pause does not split one speech session. */
 let pendingSessionParts = [];
@@ -497,6 +498,7 @@ async function broadcastState(extra = {}) {
     sttInstalled,
     sttCatalog: listSttCatalog({ sttLanguage, sttInstalled }),
     sttInstallBusy,
+    sttInstallProgress,
     scriptArchive: joinedScriptArchive(),
     translatedText: joinedTranslatedText(),
     translateOpen,
@@ -775,6 +777,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sttInstalled,
           sttCatalog: listSttCatalog({ sttLanguage, sttInstalled }),
           sttInstallBusy,
+          sttInstallProgress,
           scriptArchive: joinedScriptArchive(),
           translatedText: joinedTranslatedText(),
           translateOpen,
@@ -865,6 +868,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sttInstalled,
           sttCatalog: listSttCatalog({ sttLanguage, sttInstalled }),
           sttInstallBusy,
+          sttInstallProgress,
         });
         break;
       }
@@ -880,26 +884,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
         sttInstallBusy = code;
-        await broadcastState({ status: `Downloading ${meta.name}…` });
+        sttInstallProgress = 0;
+        await broadcastState({
+          status: `Downloading ${meta.name}…`,
+          sttInstallProgress: 0,
+        });
         try {
           await installSttModel(code, {
             onProgress: ({ phase, pct }) => {
+              const value =
+                phase === "convert" ? Math.max(pct || 90, 90) : pct || 0;
+              sttInstallProgress = value;
               const label =
                 phase === "convert"
-                  ? `Preparing ${meta.name}…`
-                  : `Downloading ${meta.name}… ${pct || 0}%`;
-              broadcastState({ status: label }).catch(() => {});
+                  ? `Preparing ${meta.name}… ${Math.round(value)}%`
+                  : `Downloading ${meta.name}… ${Math.round(value)}%`;
+              broadcastState({
+                status: label,
+                sttInstallProgress: value,
+              }).catch(() => {});
             },
           });
           const prefs = await readSttPrefs();
           sttInstalled = prefs.sttInstalled;
           sttInstallBusy = null;
-          await broadcastState({ status: `${meta.name} ready — tap to use` });
+          sttInstallProgress = 0;
+          await broadcastState({
+            status: `${meta.name} ready`,
+            sttInstallProgress: 0,
+          });
           sendResponse({ ok: true, code, sttInstalled });
         } catch (error) {
           sttInstallBusy = null;
+          sttInstallProgress = 0;
           await broadcastState({
             error: error?.message || "Model install failed",
+            sttInstallProgress: 0,
           });
           sendResponse({ ok: false, error: error?.message || "Install failed" });
         }

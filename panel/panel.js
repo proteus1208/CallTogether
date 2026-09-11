@@ -20,6 +20,8 @@ const translateTextEl = document.getElementById("translateText");
 const translateSessionsEl = document.getElementById("translateSessions");
 const translatePartialEl = document.getElementById("translatePartial");
 const hotkeyBadge = document.getElementById("hotkeyBadge");
+const sttProgressEl = document.getElementById("sttProgress");
+const sttProgressFillEl = document.getElementById("sttProgressFill");
 const langBtn = document.getElementById("langBtn");
 const langBtnLabel = document.getElementById("langBtnLabel");
 const langMenu = document.getElementById("langMenu");
@@ -165,6 +167,7 @@ let langMenuOpen = false;
 let sttLanguage = "en";
 let sttCatalog = [];
 let sttInstallBusy = null;
+let sttInstallProgress = 0;
 let sttMenuOpen = false;
 let sttPendingAdd = null;
 
@@ -205,6 +208,7 @@ function setHotkeyBadge(config) {
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
   statusEl.classList.toggle("error", isError);
+  statusEl.classList.toggle("stt-busy", Boolean(sttInstallBusy) && !isError);
 }
 
 function isPinnedToBottom(el, threshold = 28) {
@@ -309,6 +313,25 @@ function setSttUiBusy(busy) {
   }
 }
 
+function setSttProgress(pct, { visible = null } = {}) {
+  const value = Math.max(0, Math.min(100, Number(pct) || 0));
+  sttInstallProgress = value;
+  const show = visible == null ? Boolean(sttInstallBusy) : !!visible;
+  if (sttProgressEl) {
+    sttProgressEl.hidden = !show;
+    sttProgressEl.setAttribute("aria-valuenow", String(Math.round(value)));
+  }
+  if (sttProgressFillEl) {
+    sttProgressFillEl.style.width = `${value}%`;
+  }
+  if (sttMenuOpen) {
+    const loadingRow = sttList?.querySelector("li.is-loading");
+    if (loadingRow) {
+      loadingRow.style.setProperty("--stt-load-pct", `${value}%`);
+    }
+  }
+}
+
 function applySttState(state = {}) {
   if (Array.isArray(state.sttCatalog) && state.sttCatalog.length) {
     sttCatalog = state.sttCatalog;
@@ -319,6 +342,9 @@ function applySttState(state = {}) {
   if (state.sttInstallBusy === null || typeof state.sttInstallBusy === "string") {
     sttInstallBusy = state.sttInstallBusy ?? null;
   }
+  if (typeof state.sttInstallProgress === "number") {
+    sttInstallProgress = state.sttInstallProgress;
+  }
   // Keep active flags in sync for local fallback lists.
   sttCatalog = sttCatalog.map((item) => ({
     ...item,
@@ -327,6 +353,9 @@ function applySttState(state = {}) {
   }));
   setSttLabel(sttLanguage, sttCatalog);
   setSttUiBusy(Boolean(sttInstallBusy));
+  setSttProgress(sttInstallBusy ? sttInstallProgress : 0, {
+    visible: Boolean(sttInstallBusy),
+  });
   if (sttMenuOpen) renderSttList(sttSearch?.value || "");
 }
 
@@ -364,7 +393,10 @@ function renderSttList(filter = "") {
     const li = document.createElement("li");
     if (item.installed) li.classList.add("is-installed");
     if (item.code === sttLanguage) li.classList.add("is-current");
-    if (sttInstallBusy === item.code) li.classList.add("is-loading");
+    if (sttInstallBusy === item.code) {
+      li.classList.add("is-loading");
+      li.style.setProperty("--stt-load-pct", `${sttInstallProgress || 0}%`);
+    }
 
     const selectBtn = document.createElement("button");
     selectBtn.type = "button";
@@ -476,7 +508,9 @@ async function addSttModel(code) {
     return;
   }
   sttInstallBusy = target;
+  sttInstallProgress = 0;
   setSttUiBusy(true);
+  setSttProgress(0, { visible: true });
   renderSttList(sttSearch?.value || "");
   setStatus("Downloading speech model…");
   try {
@@ -492,6 +526,7 @@ async function addSttModel(code) {
     if (catalog?.ok) applySttState(catalog);
     // After install, switch to that language.
     sttInstallBusy = null;
+    setSttProgress(100, { visible: false });
     setSttUiBusy(false);
     await selectSttLanguage(target);
     setStatus("Speech language ready");
@@ -500,6 +535,7 @@ async function addSttModel(code) {
   } finally {
     sttInstallBusy = null;
     sttPendingAdd = null;
+    setSttProgress(0, { visible: false });
     setSttUiBusy(false);
     renderSttList(sttSearch?.value || "");
   }

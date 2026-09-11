@@ -2,7 +2,7 @@
   position: fixed !important;
   z-index: 2147483646 !important;
   width: min(400px, calc(100vw - 24px)) !important;
-  height: 390px !important;
+  height: 400px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 8px !important;
@@ -101,9 +101,11 @@
 #calltogether-float-root .ct-frame {
   flex: 1 !important;
   width: 100% !important;
+  min-width: 0 !important;
   min-height: 0 !important;
   border: 0 !important;
   border-radius: 16px !important;
   background: transparent !important;
   display: block !important;
+  overflow: hidden !important;
 }
