@@ -1,3 +1,13 @@
+import {
+  readSttPrefs,
+  writeSttPrefs,
+  installSttModel,
+  getModelTarGzBuffer,
+  listSttCatalog,
+  defaultInstalledCodes,
+} from "./stt-store.js";
+import { sttModelByCode } from "../shared/stt-models.js";
+
 const DEFAULT_SETTINGS = {
   hotkey: {
     altKey: true,
@@ -35,6 +45,10 @@ let translateQueued = false;
 let liveTranslateTimer = null;
 let liveTranslateBusy = false;
 const LIVE_TRANSLATE_GAP_MS = 5000;
+
+let sttLanguage = "en";
+let sttInstalled = defaultInstalledCodes();
+let sttInstallBusy = null;
 
 /** Hold Vosk finals briefly so a short pause does not split one speech session. */
 let pendingSessionParts = [];
@@ -434,11 +448,33 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({
     floatingVisible: false,
   });
+  const prefs = await readSttPrefs();
+  sttLanguage = prefs.sttLanguage;
+  sttInstalled = prefs.sttInstalled;
+  await writeSttPrefs(prefs);
 });
 
 chrome.storage.local.get(["translateTarget"], (stored) => {
   if (stored?.translateTarget) translateTarget = stored.translateTarget;
 });
+
+readSttPrefs()
+  .then((prefs) => {
+    sttLanguage = prefs.sttLanguage;
+    sttInstalled = prefs.sttInstalled;
+  })
+  .catch(() => {});
+
+async function notifyCaptureHostReloadModel() {
+  try {
+    await chrome.runtime.sendMessage({
+      type: "HOST_RELOAD_STT_MODEL",
+      language: sttLanguage,
+    });
+  } catch {
+    // host may be closed
+  }
+}
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.translateTarget?.newValue) {
@@ -457,6 +493,10 @@ async function broadcastState(extra = {}) {
     translatedSessions,
     translatedPartial,
     pasteCheckpoint,
+    sttLanguage,
+    sttInstalled,
+    sttCatalog: listSttCatalog({ sttLanguage, sttInstalled }),
+    sttInstallBusy,
     scriptArchive: joinedScriptArchive(),
     translatedText: joinedTranslatedText(),
     translateOpen,
@@ -731,6 +771,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           translatedSessions,
           translatedPartial,
           pasteCheckpoint,
+          sttLanguage,
+          sttInstalled,
+          sttCatalog: listSttCatalog({ sttLanguage, sttInstalled }),
+          sttInstallBusy,
           scriptArchive: joinedScriptArchive(),
           translatedText: joinedTranslatedText(),
           translateOpen,
@@ -812,6 +856,88 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await retranslateAll();
         if (partial.trim()) armLiveTranslate();
         sendResponse({ ok: true, translateTarget });
+        break;
+      }
+      case "GET_STT_CATALOG": {
+        sendResponse({
+          ok: true,
+          sttLanguage,
+          sttInstalled,
+          sttCatalog: listSttCatalog({ sttLanguage, sttInstalled }),
+          sttInstallBusy,
+        });
+        break;
+      }
+      case "ADD_STT_MODEL": {
+        const code = String(message.code || "").trim();
+        const meta = sttModelByCode(code);
+        if (!meta) {
+          sendResponse({ ok: false, error: "Unknown language model." });
+          break;
+        }
+        if (sttInstallBusy) {
+          sendResponse({ ok: false, error: "Another model is installing…" });
+          break;
+        }
+        sttInstallBusy = code;
+        await broadcastState({ status: `Downloading ${meta.name}…` });
+        try {
+          await installSttModel(code, {
+            onProgress: ({ phase, pct }) => {
+              const label =
+                phase === "convert"
+                  ? `Preparing ${meta.name}…`
+                  : `Downloading ${meta.name}… ${pct || 0}%`;
+              broadcastState({ status: label }).catch(() => {});
+            },
+          });
+          const prefs = await readSttPrefs();
+          sttInstalled = prefs.sttInstalled;
+          sttInstallBusy = null;
+          await broadcastState({ status: `${meta.name} ready — tap to use` });
+          sendResponse({ ok: true, code, sttInstalled });
+        } catch (error) {
+          sttInstallBusy = null;
+          await broadcastState({
+            error: error?.message || "Model install failed",
+          });
+          sendResponse({ ok: false, error: error?.message || "Install failed" });
+        }
+        break;
+      }
+      case "SET_STT_LANGUAGE": {
+        const code = String(message.code || "").trim();
+        const prefs = await readSttPrefs();
+        if (!prefs.sttInstalled.includes(code) && code !== "en") {
+          sendResponse({
+            ok: false,
+            error: "Add this language model first.",
+          });
+          break;
+        }
+        sttLanguage = code;
+        sttInstalled = prefs.sttInstalled.includes(code)
+          ? prefs.sttInstalled
+          : [...prefs.sttInstalled, code];
+        await writeSttPrefs({ sttLanguage, sttInstalled });
+        await broadcastState({
+          status: `Speech language: ${sttModelByCode(code)?.name || code}`,
+        });
+        await notifyCaptureHostReloadModel();
+        sendResponse({ ok: true, sttLanguage });
+        break;
+      }
+      case "GET_STT_MODEL_BUFFER": {
+        try {
+          const code = String(message.code || sttLanguage || "en").trim();
+          const buffer = await getModelTarGzBuffer(code);
+          sendResponse({ ok: true, code, buffer });
+        } catch (error) {
+          sendResponse({
+            ok: false,
+            error: error?.message || "Could not load speech model.",
+          });
+        }
         break;
       }
       case "SUBMIT_TRANSCRIPT": {

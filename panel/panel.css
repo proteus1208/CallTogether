@@ -398,6 +398,71 @@ body {
   color: var(--muted);
 }
 
+.stt-menu li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stt-menu li .stt-select {
+  flex: 1;
+  text-align: left;
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: none;
+  min-width: 0;
+}
+
+.stt-menu li .stt-select:hover,
+.stt-menu li .stt-select.is-active {
+  background: rgba(31, 157, 108, 0.12);
+  color: #147a54;
+}
+
+.stt-menu li .stt-select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.stt-menu li .stt-add {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.stt-menu li .stt-add:hover:not(:disabled) {
+  border-color: rgba(31, 157, 108, 0.45);
+  color: #147a54;
+}
+
+.stt-menu li .stt-add:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.stt-menu .stt-meta {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 36px 36px 36px 36px;

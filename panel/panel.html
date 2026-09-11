@@ -18,7 +18,31 @@
         <div class="col transcript-col">
           <div class="col-head">
             <div class="col-label">Transcript</div>
-            <div class="col-head-slot" aria-hidden="true"></div>
+            <div class="lang-picker" id="sttPicker">
+              <button
+                id="sttBtn"
+                type="button"
+                class="lang-btn"
+                title="Speech language model"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+              >
+                <span id="sttBtnLabel">English</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+                </svg>
+              </button>
+              <div class="lang-menu stt-menu" id="sttMenu" hidden>
+                <input
+                  id="sttSearch"
+                  type="search"
+                  placeholder="Search speech language…"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <ul id="sttList" role="listbox"></ul>
+              </div>
+            </div>
           </div>
           <div class="transcript show-placeholder" id="transcript">
             <div class="session-list" id="transcriptSessions"></div>

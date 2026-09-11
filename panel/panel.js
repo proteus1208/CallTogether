@@ -17,6 +17,11 @@ const langBtnLabel = document.getElementById("langBtnLabel");
 const langMenu = document.getElementById("langMenu");
 const langSearch = document.getElementById("langSearch");
 const langList = document.getElementById("langList");
+const sttBtn = document.getElementById("sttBtn");
+const sttBtnLabel = document.getElementById("sttBtnLabel");
+const sttMenu = document.getElementById("sttMenu");
+const sttSearch = document.getElementById("sttSearch");
+const sttList = document.getElementById("sttList");
 const dotEl = document.querySelector("[data-dot]");
 
 const DEFAULT_HOTKEY = {
@@ -149,6 +154,10 @@ let submitBusy = false;
 let translateOpen = false;
 let translateTarget = "zh-CN";
 let langMenuOpen = false;
+let sttLanguage = "en";
+let sttCatalog = [];
+let sttInstallBusy = null;
+let sttMenuOpen = false;
 
 function formatHotkey(config) {
   const parts = [];
@@ -220,6 +229,7 @@ function setLangMenuOpen(open) {
   langMenu.hidden = !langMenuOpen;
   langBtn.setAttribute("aria-expanded", langMenuOpen ? "true" : "false");
   if (langMenuOpen) {
+    setSttMenuOpen(false);
     renderLangList(langSearch.value);
     requestAnimationFrame(() => langSearch.focus());
   }
@@ -236,6 +246,135 @@ async function selectLanguage(code) {
     });
   } catch (error) {
     setStatus(error?.message || "Language update failed", true);
+  }
+}
+
+function setSttLabel(code, catalog = sttCatalog) {
+  sttLanguage = code || "en";
+  const item =
+    (catalog || []).find((row) => row.code === sttLanguage) ||
+    { code: sttLanguage, name: sttLanguage };
+  if (sttBtnLabel) sttBtnLabel.textContent = item.name || sttLanguage;
+}
+
+function applySttState(state = {}) {
+  if (Array.isArray(state.sttCatalog)) sttCatalog = state.sttCatalog;
+  if (typeof state.sttLanguage === "string") sttLanguage = state.sttLanguage;
+  if (state.sttInstallBusy === null || typeof state.sttInstallBusy === "string") {
+    sttInstallBusy = state.sttInstallBusy ?? null;
+  }
+  setSttLabel(sttLanguage, sttCatalog);
+  if (sttMenuOpen) renderSttList(sttSearch?.value || "");
+}
+
+function renderSttList(filter = "") {
+  if (!sttList) return;
+  const q = filter.trim().toLowerCase();
+  const items = (sttCatalog || []).filter((item) => {
+    if (!q) return true;
+    return (
+      item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q)
+    );
+  });
+
+  sttList.innerHTML = "";
+  if (!items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "No matches";
+    sttList.appendChild(empty);
+    return;
+  }
+
+  for (const item of items) {
+    const li = document.createElement("li");
+
+    const selectBtn = document.createElement("button");
+    selectBtn.type = "button";
+    selectBtn.className = "stt-select";
+    selectBtn.dataset.code = item.code;
+    if (item.active || item.code === sttLanguage) {
+      selectBtn.classList.add("is-active");
+    }
+    selectBtn.disabled = !item.installed;
+    selectBtn.innerHTML = `${item.name}<span class="stt-meta">${item.sizeLabel || ""}${
+      item.installed ? " · ready" : " · not added"
+    }</span>`;
+    selectBtn.addEventListener("click", () => {
+      if (!item.installed) return;
+      selectSttLanguage(item.code);
+    });
+    li.appendChild(selectBtn);
+
+    if (!item.installed) {
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "stt-add";
+      addBtn.textContent =
+        sttInstallBusy === item.code ? "…" : "Add";
+      addBtn.disabled = Boolean(sttInstallBusy);
+      addBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        addSttModel(item.code);
+      });
+      li.appendChild(addBtn);
+    }
+
+    sttList.appendChild(li);
+  }
+}
+
+function setSttMenuOpen(open) {
+  sttMenuOpen = !!open;
+  if (sttMenu) sttMenu.hidden = !sttMenuOpen;
+  sttBtn?.setAttribute("aria-expanded", sttMenuOpen ? "true" : "false");
+  if (sttMenuOpen) {
+    setLangMenuOpen(false);
+    renderSttList(sttSearch?.value || "");
+    requestAnimationFrame(() => sttSearch?.focus());
+  }
+}
+
+async function selectSttLanguage(code) {
+  setSttLabel(code);
+  setSttMenuOpen(false);
+  setStatus("Switching speech language…");
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "SET_STT_LANGUAGE",
+      code,
+    });
+    if (!result?.ok) {
+      setStatus(result?.error || "Could not switch speech language", true);
+      return;
+    }
+    setStatus(`Speech: ${sttBtnLabel?.textContent || code}`);
+  } catch (error) {
+    setStatus(error?.message || "Speech language update failed", true);
+  }
+}
+
+async function addSttModel(code) {
+  sttInstallBusy = code;
+  renderSttList(sttSearch?.value || "");
+  setStatus("Downloading speech model…");
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "ADD_STT_MODEL",
+      code,
+    });
+    if (!result?.ok) {
+      setStatus(result?.error || "Could not add language model", true);
+      return;
+    }
+    const catalog = await chrome.runtime.sendMessage({ type: "GET_STT_CATALOG" });
+    if (catalog?.ok) applySttState(catalog);
+    setStatus("Model ready — tap the language to use it");
+  } catch (error) {
+    setStatus(error?.message || "Model download failed", true);
+  } finally {
+    sttInstallBusy = null;
+    renderSttList(sttSearch?.value || "");
   }
 }
 
@@ -380,8 +519,17 @@ langBtn.addEventListener("click", (event) => {
   setLangMenuOpen(!langMenuOpen);
 });
 
+sttBtn?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setSttMenuOpen(!sttMenuOpen);
+});
+
 langSearch.addEventListener("input", () => {
   renderLangList(langSearch.value);
+});
+
+sttSearch?.addEventListener("input", () => {
+  renderSttList(sttSearch.value);
 });
 
 langSearch.addEventListener("keydown", (event) => {
@@ -391,10 +539,20 @@ langSearch.addEventListener("keydown", (event) => {
   }
 });
 
+sttSearch?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    setSttMenuOpen(false);
+    sttBtn?.focus();
+  }
+});
+
 document.addEventListener("click", (event) => {
-  if (!langMenuOpen) return;
-  if (event.target.closest("#langPicker")) return;
-  setLangMenuOpen(false);
+  if (langMenuOpen && !event.target.closest("#langPicker")) {
+    setLangMenuOpen(false);
+  }
+  if (sttMenuOpen && !event.target.closest("#sttPicker")) {
+    setSttMenuOpen(false);
+  }
 });
 
 submitBtn.addEventListener("click", async () => {
@@ -444,6 +602,7 @@ chrome.runtime.onMessage.addListener((message) => {
   if (typeof message.translateOpen === "boolean") {
     setTranslateOpen(message.translateOpen);
   }
+  applySttState(message);
   renderTranscript();
   renderTranslation();
   setCapturingUi(!!message.capturing);
@@ -482,6 +641,14 @@ chrome.runtime
     if (typeof state.translateOpen === "boolean") {
       setTranslateOpen(state.translateOpen);
     }
+    applySttState(state);
+  })
+  .catch(() => {});
+
+chrome.runtime
+  .sendMessage({ type: "GET_STT_CATALOG" })
+  .then((catalog) => {
+    if (catalog?.ok) applySttState(catalog);
   })
   .catch(() => {});
 

@@ -12,8 +12,12 @@ let sandbox = null;
 let sandboxReady = false;
 let modelReady = false;
 let modelBuffer = null;
+let activeSttLanguage = "en";
 let starting = false;
 let audioPaused = false;
+
+const STT_DB = "calltogether-stt";
+const STT_STORE = "models";
 
 function releaseMediaTracks() {
   if (!mediaStream) return;
@@ -25,6 +29,59 @@ function releaseMediaTracks() {
     }
   });
   mediaStream = null;
+}
+
+function openSttDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(STT_DB, 1);
+    req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STT_STORE)) {
+        db.createObjectStore(STT_STORE, { keyPath: "code" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+  });
+}
+
+async function readInstalledModelBuffer(code) {
+  const db = await openSttDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STT_STORE, "readonly");
+    const req = tx.objectStore(STT_STORE).get(code);
+    req.onsuccess = () => {
+      const row = req.result;
+      if (!row?.buffer) {
+        resolve(null);
+        return;
+      }
+      const buf = row.buffer;
+      if (buf instanceof ArrayBuffer) resolve(buf);
+      else {
+        resolve(
+          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+        );
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function resolveModelBuffer(language = activeSttLanguage) {
+  const code = language || "en";
+  if (code === "en") {
+    const response = await fetch(MODEL_URL);
+    if (!response.ok) {
+      throw new Error(`Could not read local speech model (${response.status}).`);
+    }
+    return response.arrayBuffer();
+  }
+  const cached = await readInstalledModelBuffer(code);
+  if (!cached) {
+    throw new Error("Language model is not installed. Add it from Transcript.");
+  }
+  return cached;
 }
 
 function setStatus(text, isError = false) {
@@ -70,11 +127,7 @@ function waitForSandboxReady() {
 
 async function ensureModelBuffer() {
   if (modelBuffer) return modelBuffer;
-  const response = await fetch(MODEL_URL);
-  if (!response.ok) {
-    throw new Error(`Could not read local speech model (${response.status}).`);
-  }
-  modelBuffer = await response.arrayBuffer();
+  modelBuffer = await resolveModelBuffer(activeSttLanguage);
   return modelBuffer;
 }
 
@@ -82,12 +135,25 @@ async function prepareModel() {
   ensureSandboxFrame();
   await waitForSandboxReady();
 
+  // Ask background for the active speech language.
+  try {
+    const state = await chrome.runtime.sendMessage({ type: "GET_STATE" });
+    if (state?.sttLanguage) activeSttLanguage = state.sttLanguage;
+  } catch {
+    // ignore
+  }
+
+  modelReady = false;
+  modelBuffer = null;
+  sendToSandbox({ type: "RESET" });
+
   let copy = null;
   try {
     await ensureModelBuffer();
     copy = modelBuffer.slice(0);
   } catch (error) {
     console.warn(error);
+    throw error;
   }
 
   if (copy) sendToSandbox({ type: "LOAD_MODEL", modelBuffer: copy }, [copy]);
@@ -119,6 +185,19 @@ async function prepareModel() {
     };
     window.addEventListener("message", onMessage);
   });
+}
+
+async function reloadSttModel(language) {
+  if (language) activeSttLanguage = language;
+  modelReady = false;
+  modelBuffer = null;
+  setStatus("Loading speech language…");
+  try {
+    await prepareModel();
+    setStatus(mediaStream ? "Capturing…" : "Speech language ready.");
+  } catch (error) {
+    setStatus(error?.message || "Could not load speech language", true);
+  }
 }
 
 async function getStreamFromDesktopId(streamId) {
@@ -401,6 +480,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     startCapture({ streamId: message.streamId }).then(() =>
       sendResponse({ ok: true })
     );
+    return true;
+  }
+  if (message?.type === "HOST_RELOAD_STT_MODEL") {
+    reloadSttModel(message.language).then(() => sendResponse({ ok: true }));
     return true;
   }
 });

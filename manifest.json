@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.6.16",
+  "version": "1.7.0",
   "description": "Capture call audio, live transcript, hotkey paste into AI chat.",
   "permissions": [
     "storage",
@@ -13,7 +13,8 @@
     "desktopCapture"
   ],
   "host_permissions": [
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://alphacephei.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
@@ -51,7 +52,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["panel/*", "sandbox/*", "vendor/vosk/*", "models/*"],
+      "resources": ["panel/*", "sandbox/*", "vendor/vosk/*", "models/*", "shared/*"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ]

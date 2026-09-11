@@ -188,7 +188,18 @@ async function loadLocalModelAsBlobUrl() {
 }
 
 async function loadModel(modelBuffer) {
-  if (voskModel) return voskModel;
+  if (voskModel) {
+    terminateModel(voskModel);
+    voskModel = null;
+  }
+  if (recognizer) {
+    try {
+      recognizer.remove();
+    } catch {
+      // ignore
+    }
+    recognizer = null;
+  }
 
   const bufferBytes =
     modelBuffer?.byteLength ||
@@ -339,6 +350,11 @@ window.addEventListener("message", async (event) => {
         }
         recognizer = null;
       }
+      if (voskModel) {
+        terminateModel(voskModel);
+        voskModel = null;
+      }
+      return;
     }
   } catch (error) {
     console.error("[CallTogether sandbox] LOAD_MODEL failed", error);
