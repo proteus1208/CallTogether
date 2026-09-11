@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CallTogether — Screen audio</title>
+    <link rel="stylesheet" href="session.css" />
+  </head>
+  <body>
+    <main>
+      <p class="brand">CallTogether</p>
+      <h1>Share screen audio</h1>
+      <p class="lede">
+        Capture desktop app sound (Zoom, Meet app, Media Player…). Chrome cannot
+        include audio from a single app <strong>Window</strong> — pick
+        <strong>Entire Screen</strong> and enable
+        <strong>Share system audio</strong>.
+      </p>
+      <p id="status" class="status">Ready</p>
+      <div class="actions">
+        <button id="shareBtn" type="button">Choose screen…</button>
+        <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
+      </div>
+      <p class="hint">Keep this window open while capturing. Close it or press Stop when done.</p>
+    </main>
+
+    <iframe
+      id="sandbox"
+      src="../sandbox/transcribe.html"
+      style="display: none; width: 0; height: 0; border: 0"
+    ></iframe>
+    <script type="module" src="session.js"></script>
+  </body>
+</html>

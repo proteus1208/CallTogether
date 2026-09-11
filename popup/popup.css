@@ -1,12 +1,13 @@
 :root {
-  color-scheme: light;
-  --bg: #102019;
+  color-scheme: dark;
+  --bg: #0d1914;
   --text: #e8f5ee;
   --muted: #9bb5a8;
   --accent: #3ecf8e;
   --accent-text: #062216;
   --danger: #ff8b82;
   --line: rgba(255, 255, 255, 0.1);
+  --panel: rgba(255, 255, 255, 0.035);
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
@@ -16,32 +17,50 @@
 
 body {
   margin: 0;
-  width: 280px;
-  background: linear-gradient(165deg, #0c1713, var(--bg));
+  width: 320px;
+  background:
+    radial-gradient(280px 160px at 100% -10%, rgba(62, 207, 142, 0.18), transparent 55%),
+    linear-gradient(165deg, #0a1410, var(--bg));
   color: var(--text);
 }
 
 main {
-  padding: 14px;
+  padding: 16px;
+}
+
+header {
+  margin-bottom: 14px;
+}
+
+.brand {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 header h1 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  font-weight: 700;
 }
 
-header p {
-  margin: 4px 0 12px;
+.lede {
+  margin: 8px 0 0;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .state {
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 10px;
-  margin-bottom: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--panel);
 }
 
 .row {
@@ -65,7 +84,7 @@ header p {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--panel);
   cursor: pointer;
 }
 
@@ -114,14 +133,19 @@ header p {
   transform: translateX(18px);
 }
 
-.actions {
+.capture-block {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 8px;
+  margin-bottom: 4px;
 }
 
-.actions.stacked {
-  grid-template-columns: 1fr;
+.capture-block h2 {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 button.full {
@@ -129,22 +153,56 @@ button.full {
   margin-top: 8px;
 }
 
+.steps {
+  margin: 12px 0 0;
+  padding: 10px 10px 10px 28px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.steps li {
+  margin: 0 0 4px;
+}
+
+.steps li:last-child {
+  margin-bottom: 0;
+}
+
 .hint {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 
 button {
   appearance: none;
   border: 0;
-  border-radius: 10px;
-  padding: 10px 8px;
+  border-radius: 12px;
+  padding: 11px 12px;
   font-weight: 650;
   cursor: pointer;
   background: var(--accent);
   color: var(--accent-text);
+  text-align: left;
+  width: 100%;
+}
+
+button .btn-title {
+  display: block;
+  font-size: 0.9rem;
+}
+
+button .btn-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.75;
 }
 
 button.secondary {
@@ -153,10 +211,17 @@ button.secondary {
   border: 1px solid var(--line);
 }
 
+button.secondary .btn-sub {
+  color: var(--muted);
+  opacity: 1;
+}
+
 button.ghost {
   background: transparent;
   color: var(--muted);
   border: 1px solid transparent;
+  text-align: center;
+  padding: 9px 8px;
 }
 
 button:disabled {
@@ -172,15 +237,21 @@ button:disabled {
 }
 
 footer {
-  margin-top: 12px;
+  margin-top: 14px;
   display: flex;
   justify-content: space-between;
   gap: 8px;
   align-items: center;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 footer a {
   color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+footer a:hover {
+  text-decoration: underline;
 }

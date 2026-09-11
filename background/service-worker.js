@@ -9,10 +9,12 @@ const DEFAULT_SETTINGS = {
 };
 
 const OFFSCREEN_URL = "offscreen/speech.html";
+const SCREEN_SESSION_URL = "capture/session.html";
 
 let capturing = false;
 let transcript = "";
 let partial = "";
+let screenSessionWindowId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.sync.get(null);
@@ -132,6 +134,37 @@ async function startCaptureWithStreamId(streamId) {
   return { ok: true };
 }
 
+async function openScreenCaptureSession() {
+  if (screenSessionWindowId != null) {
+    try {
+      await chrome.windows.update(screenSessionWindowId, { focused: true });
+      return { ok: true };
+    } catch {
+      screenSessionWindowId = null;
+    }
+  }
+
+  const win = await chrome.windows.create({
+    url: chrome.runtime.getURL(SCREEN_SESSION_URL),
+    type: "popup",
+    width: 460,
+    height: 320,
+    focused: true,
+  });
+  screenSessionWindowId = win.id ?? null;
+  return { ok: true };
+}
+
+async function closeScreenCaptureSession() {
+  if (screenSessionWindowId == null) return;
+  try {
+    await chrome.windows.remove(screenSessionWindowId);
+  } catch {
+    // already closed
+  }
+  screenSessionWindowId = null;
+}
+
 async function stopCapture() {
   capturing = false;
   partial = "";
@@ -143,7 +176,13 @@ async function stopCapture() {
   } catch {
     // ignore
   }
+  try {
+    await chrome.runtime.sendMessage({ type: "CAPTURE_PAGE_STOP" });
+  } catch {
+    // ignore
+  }
   await closeOffscreenDocument();
+  await closeScreenCaptureSession();
   await broadcastState();
   return { ok: true };
 }
@@ -154,6 +193,17 @@ async function clearTranscript() {
   await broadcastState();
   return { ok: true, transcript };
 }
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === screenSessionWindowId) {
+    screenSessionWindowId = null;
+    if (capturing) {
+      capturing = false;
+      partial = "";
+      broadcastState({ error: "Screen capture window closed." });
+    }
+  }
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
@@ -174,6 +224,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "START_TAB_CAPTURE": {
         sendResponse(await startCaptureWithStreamId(message.streamId));
+        break;
+      }
+      case "OPEN_SCREEN_CAPTURE_SESSION": {
+        sendResponse(await openScreenCaptureSession());
         break;
       }
       case "STOP_CAPTURE": {

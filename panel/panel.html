@@ -10,20 +10,22 @@
     <div class="panel">
       <div class="status-row">
         <span class="dot" data-dot></span>
-        <p id="status" class="status">Ready</p>
+        <p id="status" class="status">Ready — start capture from the toolbar popup</p>
       </div>
 
-      <div class="transcript" id="transcript">
+      <div class="transcript show-placeholder" id="transcript">
         <span id="finalText"></span><span id="partialText" class="partial"></span>
       </div>
 
       <div class="actions">
-        <button id="shareBtn" type="button">Share audio</button>
+        <button id="shareBtn" type="button">Open capture</button>
         <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
         <button id="clearBtn" type="button" class="ghost">Clear</button>
       </div>
 
-      <p class="hint" id="hint"></p>
+      <p class="hint" id="hint">
+        Local STT · no mic · hotkey pastes into the focused AI input
+      </p>
     </div>
 
     <script type="module" src="panel.js"></script>

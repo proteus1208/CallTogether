@@ -9,8 +9,12 @@
   <body>
     <main>
       <header>
-        <h1>CallTogether</h1>
-        <p>Capture sound → AI chat</p>
+        <p class="brand">CallTogether</p>
+        <h1>Turn call audio into AI answers</h1>
+        <p class="lede">
+          Capture what you hear on a call, get a live transcript, paste it into
+          ChatGPT / Claude / Gemini with one hotkey.
+        </p>
       </header>
 
       <section class="state">
@@ -23,30 +27,41 @@
       <label class="toggle-row" for="floatToggle">
         <span>
           <strong>Floating panel</strong>
-          <small>Show on the AI page</small>
+          <small>Live transcript on the AI page</small>
         </span>
         <input id="floatToggle" type="checkbox" role="switch" />
       </label>
 
-      <section class="actions stacked">
-        <button id="startTabBtn" type="button">Share Chrome tab audio</button>
-        <button id="startScreenBtn" type="button" class="secondary">
-          Share screen audio (Windows apps)
+      <section class="capture-block">
+        <h2>Start capture</h2>
+        <button id="startScreenBtn" type="button">
+          <span class="btn-title">Desktop / app audio</span>
+          <span class="btn-sub">Zoom, Meet app, Media Player…</span>
         </button>
-        <button id="stopBtn" type="button" class="ghost" disabled>Stop</button>
+        <button id="startTabBtn" type="button" class="secondary">
+          <span class="btn-title">Chrome tab audio</span>
+          <span class="btn-sub">Browser call in another tab</span>
+        </button>
+        <button id="stopBtn" type="button" class="ghost" disabled>Stop capture</button>
       </section>
 
       <button id="clearBtn" type="button" class="ghost full">Clear transcript</button>
 
       <p id="error" class="error" hidden></p>
-      <p class="hint" id="hint">
-        Chrome cannot share audio from a single <strong>Window</strong>. For Media
-        Player / Zoom / desktop apps, use <strong>Entire Screen</strong> and enable
-        <strong>Share system audio</strong>.
+
+      <ol class="steps">
+        <li>Share audio (screen or tab) with sound enabled</li>
+        <li>Watch the floating transcript update live</li>
+        <li>Focus the AI chat · press the paste hotkey</li>
+      </ol>
+
+      <p class="hint">
+        Chrome cannot share audio from a single app <em>Window</em>. For desktop
+        apps choose <strong>Entire Screen</strong> + <strong>Share system audio</strong>.
       </p>
 
       <footer>
-        <a href="#" id="openOptions">Settings</a>
+        <a href="#" id="openOptions">Settings &amp; hotkey</a>
       </footer>
     </main>
     <script type="module" src="popup.js"></script>

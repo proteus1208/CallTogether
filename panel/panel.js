@@ -30,12 +30,12 @@ function setCapturingUi(capturing) {
 }
 
 shareBtn.addEventListener("click", async () => {
-  setStatus("Open the toolbar popup → Share tab audio (Chrome picker).");
+  setStatus("Open the toolbar popup to share screen or tab audio.");
   try {
     await chrome.action.openPopup();
   } catch {
     setStatus(
-      "Click the CallTogether toolbar icon → Share tab audio. Choose the call tab + enable audio.",
+      "Click the CallTogether icon → Desktop/app audio or Chrome tab audio.",
       true
     );
   }
@@ -80,7 +80,7 @@ chrome.runtime
   .catch(() => {});
 
 hintEl.textContent =
-  "Desktop apps: toolbar → Share screen audio → Entire Screen + Share system audio. Chrome Window share has no audio.";
+  "Local speech · no microphone · hotkey pastes into the focused AI chat";
 renderTranscript();
-setStatus("Ready — share tab or screen audio");
+setStatus("Ready — start capture from the toolbar popup");
 setCapturingUi(false);

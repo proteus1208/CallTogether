@@ -9,10 +9,13 @@
   <body>
     <main>
       <header>
-        <h1>CallTogether Settings</h1>
+        <p class="brand">CallTogether</p>
+        <h1>Settings</h1>
         <p>
-          Captures <strong>tab/system audio output</strong> (not the microphone),
-          transcribes locally, and pastes into AI chat with a hotkey.
+          CallTogether captures <strong>speaker / tab / system audio</strong>
+          (not your microphone), transcribes it locally on your machine, shows a
+          floating live transcript on the AI page, and pastes it into chat with a
+          hotkey.
         </p>
       </header>
 
@@ -20,8 +23,8 @@
         <section>
           <h2>Paste hotkey</h2>
           <p class="hint">
-            Focus the AI chat input, then press this shortcut to paste the
-            transcript and send Enter.
+            Focus the AI chat composer, then press this shortcut to paste the
+            current transcript and send Enter.
           </p>
           <label class="hotkey-box">
             <span>Click and press a shortcut</span>
@@ -41,11 +44,24 @@
         </section>
 
         <section>
-          <h2>How capture works</h2>
+          <h2>How to use</h2>
+          <ol class="howto">
+            <li>
+              Open your AI tab (ChatGPT, Claude, Gemini…) — the floating panel
+              appears and can be dragged freely.
+            </li>
+            <li>
+              Toolbar popup → <strong>Desktop / app audio</strong> for Zoom or
+              other apps (<em>Entire Screen</em> + system audio), or
+              <strong>Chrome tab audio</strong> for a browser call tab.
+            </li>
+            <li>
+              Watch the live transcript, focus the AI input, press your hotkey.
+            </li>
+          </ol>
           <p class="hint">
-            Use <strong>Share tab audio</strong> in the popup. Chrome’s share
-            picker appears — select the call tab and enable audio. Speech is
-            recognized locally (no microphone device required).
+            Initial AI prompts and CV / file uploads stay manual on the AI site.
+            CallTogether only handles call audio → text → paste.
           </p>
         </section>
 

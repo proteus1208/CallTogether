@@ -14,8 +14,16 @@ function formatError(detail, fallback = "Vosk model error.") {
   }
 
   const parts = [];
-  if (detail.error != null) parts.push(String(detail.error));
-  if (detail.message != null) parts.push(String(detail.message));
+  if (detail.error != null && detail.error !== "") {
+    parts.push(
+      typeof detail.error === "string"
+        ? detail.error
+        : JSON.stringify(detail.error)
+    );
+  }
+  if (detail.message != null && detail.message !== "") {
+    parts.push(String(detail.message));
+  }
   if (detail.result != null && detail.result !== true) {
     parts.push(`result=${String(detail.result)}`);
   }
@@ -23,13 +31,14 @@ function formatError(detail, fallback = "Vosk model error.") {
     parts.push(`event=${detail.event}`);
   }
 
-  // Include any other useful fields.
   try {
     const extra = { ...detail };
     delete extra.event;
-    const keys = Object.keys(extra);
+    const keys = Object.keys(extra).filter((k) => extra[k] != null && extra[k] !== "");
     if (keys.length) {
-      parts.push(JSON.stringify(extra));
+      const slim = {};
+      for (const k of keys) slim[k] = extra[k];
+      parts.push(JSON.stringify(slim));
     } else if (!parts.length) {
       parts.push(JSON.stringify(detail));
     }
@@ -38,6 +47,19 @@ function formatError(detail, fallback = "Vosk model error.") {
   }
 
   return parts.filter(Boolean).join(" | ") || fallback;
+}
+
+function terminateModel(model) {
+  try {
+    model?.terminate?.();
+  } catch {
+    // ignore
+  }
+  try {
+    model?.worker?.terminate?.();
+  } catch {
+    // ignore
+  }
 }
 
 function loadModelFromUrl(modelUrl, label) {
@@ -67,6 +89,7 @@ function loadModelFromUrl(modelUrl, label) {
         voskModel = model;
         resolve(model);
       } else {
+        terminateModel(model);
         reject(new Error(err || "Speech model failed to load."));
       }
     };
@@ -75,7 +98,6 @@ function loadModelFromUrl(modelUrl, label) {
       finish(false, `Speech model init timed out for ${label}`);
     }, 120000);
 
-    // Raw worker failures often have no message body.
     try {
       model.worker?.addEventListener("error", (event) => {
         const msg = [
@@ -111,19 +133,63 @@ function loadModelFromUrl(modelUrl, label) {
     });
 
     model.on("error", (message) => {
-      const msg = formatError(message, 'Vosk error event without details ({"event":"error"})');
+      const msg = formatError(
+        message,
+        'Vosk error event without details ({"event":"error"})'
+      );
       post({ type: "STATUS", text: `Vosk error event detail: ${msg}` });
-      // Also log full object for DevTools on the sandbox frame.
       console.error("[CallTogether sandbox] Vosk error detail:", message);
       finish(false, msg);
     });
   });
 }
 
+async function bufferToModelBlobUrl(modelBuffer) {
+  const bytes =
+    modelBuffer instanceof ArrayBuffer
+      ? modelBuffer
+      : modelBuffer?.buffer
+        ? modelBuffer.buffer.slice(
+            modelBuffer.byteOffset,
+            modelBuffer.byteOffset + modelBuffer.byteLength
+          )
+        : null;
+  if (!bytes || bytes.byteLength < 1000) {
+    throw new Error(`Model buffer too small (${bytes?.byteLength || 0} bytes).`);
+  }
+
+  // Sanity-check gzip magic (1f 8b)
+  const head = new Uint8Array(bytes, 0, 2);
+  if (head[0] !== 0x1f || head[1] !== 0x8b) {
+    throw new Error(
+      `Model buffer is not gzip (magic=${head[0]},${head[1]}). Re-copy models/en-us-small.tar.gz.`
+    );
+  }
+
+  const file = new File([bytes], "model.tar.gz", {
+    type: "application/gzip",
+  });
+  return URL.createObjectURL(file);
+}
+
+async function loadLocalModelAsBlobUrl() {
+  const url = new URL("model.tar.gz", location.href).href;
+  post({ type: "STATUS", text: `Fetching ${url}…` });
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not fetch model.tar.gz (${response.status}).`);
+  }
+  const buffer = await response.arrayBuffer();
+  post({
+    type: "STATUS",
+    text: `Fetched model.tar.gz (${buffer.byteLength} bytes)`,
+  });
+  return bufferToModelBlobUrl(buffer);
+}
+
 async function loadModel(modelBuffer) {
   if (voskModel) return voskModel;
 
-  const attempts = [];
   const bufferBytes =
     modelBuffer?.byteLength ||
     (modelBuffer?.buffer && modelBuffer.buffer.byteLength) ||
@@ -131,35 +197,42 @@ async function loadModel(modelBuffer) {
 
   post({
     type: "STATUS",
-    text: `Vosk=${typeof globalThis.Vosk}, buffer=${bufferBytes} bytes`,
+    text: `Vosk=${typeof globalThis.Vosk}, buffer=${bufferBytes} bytes, href=${location.href}`,
   });
 
-  attempts.push({
-    label: "sandbox/model.tar.gz",
-    run: () => loadModelFromUrl("model.tar.gz", "sandbox/model.tar.gz"),
-  });
+  const attempts = [];
 
+  // Prefer blob: URLs — absolute, same opaque origin as the sandbox worker.
   if (bufferBytes > 0) {
     attempts.push({
-      label: "blob:model.tar.gz",
-      run: () => {
-        const file = new File([modelBuffer], "model.tar.gz", {
-          type: "application/gzip",
-        });
-        const url = URL.createObjectURL(file);
+      label: "parent-buffer-blob",
+      run: async () => {
+        const url = await bufferToModelBlobUrl(modelBuffer);
         post({
           type: "STATUS",
-          text: `Blob URL created (${file.size} bytes): ${String(url).slice(0, 48)}…`,
+          text: `Blob URL ready (${bufferBytes} bytes)`,
         });
-        return loadModelFromUrl(url, "blob:model.tar.gz");
+        return loadModelFromUrl(url, "parent-buffer-blob");
       },
     });
-  } else {
-    post({
-      type: "STATUS",
-      text: "No model buffer from parent; blob fallback unavailable.",
-    });
   }
+
+  attempts.push({
+    label: "local-fetch-blob",
+    run: async () => {
+      const url = await loadLocalModelAsBlobUrl();
+      return loadModelFromUrl(url, "local-fetch-blob");
+    },
+  });
+
+  // Last resort: absolute extension URL (may be blocked from null-origin workers).
+  attempts.push({
+    label: "absolute-extension-url",
+    run: () => {
+      const url = new URL("model.tar.gz", location.href).href;
+      return loadModelFromUrl(url, "absolute-extension-url");
+    },
+  });
 
   const errors = [];
   for (const attempt of attempts) {
@@ -170,7 +243,11 @@ async function loadModel(modelBuffer) {
       const msg = error?.message || String(error);
       errors.push(`${attempt.label}: ${msg}`);
       post({ type: "STATUS", text: `Failed ${attempt.label}: ${msg}` });
-      console.error("[CallTogether sandbox] load attempt failed", attempt.label, error);
+      console.error(
+        "[CallTogether sandbox] load attempt failed",
+        attempt.label,
+        error
+      );
     }
   }
 
@@ -232,7 +309,9 @@ window.addEventListener("message", async (event) => {
 
     if (data.type === "AUDIO") {
       const pcm =
-        data.pcm instanceof Float32Array ? data.pcm : new Float32Array(data.pcm);
+        data.pcm instanceof Float32Array
+          ? data.pcm
+          : new Float32Array(data.pcm);
       acceptPcm(pcm, data.sampleRate || sampleRate);
       return;
     }

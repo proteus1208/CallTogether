@@ -1,21 +1,22 @@
 #calltogether-float-root {
   position: fixed !important;
-  top: 72px !important;
-  right: 18px !important;
   z-index: 2147483646 !important;
-  width: min(380px, calc(100vw - 24px)) !important;
-  height: 360px !important;
+  width: min(400px, calc(100vw - 24px)) !important;
+  height: 390px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 8px !important;
-  padding: 10px !important;
+  padding: 12px !important;
   margin: 0 !important;
-  border-radius: 14px !important;
+  border-radius: 16px !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  background: rgba(15, 28, 23, 0.96) !important;
+  background:
+    linear-gradient(165deg, rgba(18, 36, 28, 0.98), rgba(10, 20, 16, 0.98)) !important;
   color: #e7f3ec !important;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35) !important;
-  backdrop-filter: blur(10px);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(62, 207, 142, 0.08) !important;
+  backdrop-filter: blur(12px);
   font-family: "Segoe UI", "Helvetica Neue", sans-serif !important;
   font-size: 13px !important;
   line-height: 1.4 !important;
@@ -23,10 +24,16 @@
   visibility: visible !important;
   opacity: 1 !important;
   pointer-events: auto !important;
+  /* Do NOT lock top/left/right with !important — that breaks free dragging. */
+  top: 72px;
+  right: 18px;
+  left: auto;
+  bottom: auto;
   transform: none !important;
   clip: auto !important;
   max-width: none !important;
   max-height: none !important;
+  box-sizing: border-box !important;
 }
 
 #calltogether-float-root.ct-collapsed {
@@ -39,7 +46,8 @@
 }
 
 #calltogether-float-root.ct-dragging {
-  opacity: 0.92 !important;
+  opacity: 0.94 !important;
+  cursor: grabbing !important;
 }
 
 #calltogether-float-root .ct-header {
@@ -49,6 +57,8 @@
   gap: 8px !important;
   cursor: grab !important;
   flex: 0 0 auto !important;
+  touch-action: none !important;
+  padding: 2px 2px 4px !important;
 }
 
 #calltogether-float-root .ct-header:active {
@@ -61,6 +71,23 @@
   gap: 8px !important;
   font-size: 13px !important;
   color: inherit !important;
+  min-width: 0 !important;
+}
+
+#calltogether-float-root .ct-title strong {
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+}
+
+#calltogether-float-root .ct-tagline {
+  display: block !important;
+  margin-top: 1px !important;
+  color: #9bb5a8 !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 #calltogether-float-root .ct-dot {
@@ -69,6 +96,7 @@
   border-radius: 50% !important;
   background: #7f8f87 !important;
   display: inline-block !important;
+  flex: 0 0 auto !important;
 }
 
 #calltogether-float-root .ct-dot.ct-live,
@@ -86,6 +114,7 @@
   padding: 4px 8px !important;
   cursor: pointer !important;
   font-size: 12px !important;
+  line-height: 1 !important;
 }
 
 #calltogether-float-root .ct-frame {
@@ -93,7 +122,7 @@
   width: 100% !important;
   min-height: 0 !important;
   border: 0 !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   background: transparent !important;
   display: block !important;
 }
@@ -103,6 +132,7 @@
   font-size: 11px !important;
   flex: 0 0 auto !important;
   display: block !important;
+  line-height: 1.35 !important;
 }
 
 #calltogether-float-root kbd {

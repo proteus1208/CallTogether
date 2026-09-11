@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.4.1",
-  "description": "Capture a tab’s audio, live transcript float, hotkey paste into AI chat.",
+  "version": "1.4.4",
+  "description": "Capture call/tab/system audio, live floating transcript, hotkey-paste into AI chat. Local STT, no microphone.",
   "permissions": [
     "storage",
     "tabs",
+    "windows",
     "scripting",
     "activeTab",
     "offscreen",
@@ -17,7 +18,7 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "CallTogether",
+    "default_title": "CallTogether — call audio → AI chat",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

@@ -16,6 +16,7 @@ let hotkey = { ...DEFAULT_HOTKEY };
 let shellEl = null;
 let iframeEl = null;
 let hotkeyEl = null;
+let dragHandleEl = null;
 let dragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
@@ -52,7 +53,10 @@ function ensureShell() {
     <div class="ct-header" data-drag-handle>
       <div class="ct-title">
         <span class="ct-dot" data-dot></span>
-        <strong>CallTogether</strong>
+        <div>
+          <strong>CallTogether</strong>
+          <span class="ct-tagline">Live call transcript → AI chat</span>
+        </div>
       </div>
       <div class="ct-actions">
         <button type="button" data-collapse title="Collapse">–</button>
@@ -65,20 +69,22 @@ function ensureShell() {
       allow="microphone *"
     ></iframe>
     <div class="ct-footer">
-      Hotkey <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> pastes into the AI input + Enter
+      Drag freely · <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> pastes transcript + Enter
     </div>
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.4.0`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.4.4`;
   hotkeyEl = shellEl.querySelector("[data-hotkey]");
 
   (document.body || document.documentElement).appendChild(shellEl);
 
   const handle = shellEl.querySelector("[data-drag-handle]");
+  dragHandleEl = handle;
   handle.addEventListener("pointerdown", onDragStart);
-  window.addEventListener("pointermove", onDragMove);
+  window.addEventListener("pointermove", onDragMove, { passive: true });
   window.addEventListener("pointerup", onDragEnd);
+  window.addEventListener("pointercancel", onDragEnd);
 
   shellEl.querySelector("[data-collapse]").addEventListener("click", () => {
     shellEl.classList.toggle("ct-collapsed");
@@ -91,27 +97,36 @@ function ensureShell() {
   return shellEl;
 }
 
+function setShellPosition(left, top, right = "auto") {
+  if (!shellEl) return;
+  // Use !important so host-page CSS cannot pin one axis.
+  shellEl.style.setProperty("left", typeof left === "number" ? `${left}px` : left, "important");
+  shellEl.style.setProperty("top", typeof top === "number" ? `${top}px` : top, "important");
+  shellEl.style.setProperty(
+    "right",
+    typeof right === "number" ? `${right}px` : right,
+    "important"
+  );
+  shellEl.style.setProperty("bottom", "auto", "important");
+}
+
 function restorePosition() {
   chrome.storage.local.get(["panelLeft", "panelTop", "panelCollapsed"], (result) => {
     if (!shellEl) return;
 
-    const width = shellEl.offsetWidth || 380;
+    const width = shellEl.offsetWidth || 400;
     const height = shellEl.classList.contains("ct-collapsed")
-      ? 48
-      : shellEl.offsetHeight || 360;
+      ? 52
+      : shellEl.offsetHeight || 390;
 
     if (typeof result.panelLeft === "number" && typeof result.panelTop === "number") {
       const pos = clampToViewport(result.panelLeft, result.panelTop, width, height);
-      shellEl.style.left = `${pos.left}px`;
-      shellEl.style.top = `${pos.top}px`;
-      shellEl.style.right = "auto";
+      setShellPosition(pos.left, pos.top, "auto");
     } else {
-      shellEl.style.top = "72px";
-      shellEl.style.right = "18px";
-      shellEl.style.left = "auto";
+      const defaultLeft = Math.max(8, window.innerWidth - width - 18);
+      setShellPosition(defaultLeft, 72, "auto");
     }
 
-    // Prefer expanded when enabling; only keep collapsed if user set it.
     if (result.panelCollapsed) {
       shellEl.classList.add("ct-collapsed");
     }
@@ -125,29 +140,35 @@ function onDragStart(event) {
   const rect = shellEl.getBoundingClientRect();
   dragOffsetX = event.clientX - rect.left;
   dragOffsetY = event.clientY - rect.top;
+  // Convert right-anchored layout to left/top so both axes move.
+  setShellPosition(rect.left, rect.top, "auto");
   shellEl.classList.add("ct-dragging");
+  dragHandleEl?.setPointerCapture?.(event.pointerId);
   event.preventDefault();
 }
 
 function onDragMove(event) {
   if (!dragging || !shellEl) return;
-  const width = shellEl.offsetWidth || 380;
-  const height = shellEl.offsetHeight || 48;
+  const width = shellEl.offsetWidth || 400;
+  const height = shellEl.offsetHeight || 52;
   const pos = clampToViewport(
     event.clientX - dragOffsetX,
     event.clientY - dragOffsetY,
     width,
     height
   );
-  shellEl.style.left = `${pos.left}px`;
-  shellEl.style.top = `${pos.top}px`;
-  shellEl.style.right = "auto";
+  setShellPosition(pos.left, pos.top, "auto");
 }
 
-function onDragEnd() {
+function onDragEnd(event) {
   if (!dragging || !shellEl) return;
   dragging = false;
   shellEl.classList.remove("ct-dragging");
+  try {
+    dragHandleEl?.releasePointerCapture?.(event?.pointerId);
+  } catch {
+    // ignore
+  }
   const rect = shellEl.getBoundingClientRect();
   chrome.storage.local.set({
     panelLeft: Math.round(rect.left),
