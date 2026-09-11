@@ -33,14 +33,19 @@ async function refresh() {
 floatToggle.addEventListener("change", async () => {
   showError("");
   const visible = floatToggle.checked;
+  // Persist preference first so content scripts on AI tabs react immediately.
   await chrome.storage.local.set({ floatingVisible: visible });
+
   const result = await chrome.runtime.sendMessage({
     type: visible ? "SHOW_PANEL" : "HIDE_PANEL",
   });
+
+  // Do not flip the preference off just because the active tab isn't an AI page.
   if (!result?.ok && visible) {
-    showError(result?.error || "Open an AI page tab first.");
-    floatToggle.checked = false;
-    await chrome.storage.local.set({ floatingVisible: false });
+    showError(
+      result?.error ||
+        "Preference saved. Open/refresh your AI tab to see the floating panel."
+    );
   }
 });
 

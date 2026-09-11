@@ -22,11 +22,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!stored.hotkey) {
     await chrome.storage.sync.set(DEFAULT_SETTINGS);
   }
-  const local = await chrome.storage.local.get(["floatingVisible"]);
-  if (local.floatingVisible === undefined) {
-    await chrome.storage.local.set({ floatingVisible: true });
-  }
+  // When the extension is installed/enabled/updated, show the floating panel.
+  await chrome.storage.local.set({ floatingVisible: true, panelCollapsed: false });
 });
+
 
 async function broadcastState(extra = {}) {
   const payload = {

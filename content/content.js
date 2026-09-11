@@ -30,11 +30,24 @@ function formatHotkey(config) {
   return parts.join("+");
 }
 
+function clampToViewport(left, top, width, height) {
+  const maxLeft = Math.max(8, window.innerWidth - width - 8);
+  const maxTop = Math.max(8, window.innerHeight - height - 8);
+  return {
+    left: Math.min(Math.max(8, left), maxLeft),
+    top: Math.min(Math.max(8, top), maxTop),
+  };
+}
+
 function ensureShell() {
-  if (shellEl) return shellEl;
+  if (shellEl && document.contains(shellEl)) return shellEl;
+
+  // Remove stale node if the page re-rendered around it.
+  document.getElementById(SHELL_ID)?.remove();
 
   shellEl = document.createElement("div");
   shellEl.id = SHELL_ID;
+  shellEl.setAttribute("data-calltogether", "1");
   shellEl.innerHTML = `
     <div class="ct-header" data-drag-handle>
       <div class="ct-title">
@@ -60,7 +73,7 @@ function ensureShell() {
   iframeEl.src = chrome.runtime.getURL(PANEL_PATH);
   hotkeyEl = shellEl.querySelector("[data-hotkey]");
 
-  document.documentElement.appendChild(shellEl);
+  (document.body || document.documentElement).appendChild(shellEl);
 
   const handle = shellEl.querySelector("[data-drag-handle]");
   handle.addEventListener("pointerdown", onDragStart);
@@ -79,20 +92,30 @@ function ensureShell() {
 }
 
 function restorePosition() {
-  chrome.storage.local.get(
-    ["panelLeft", "panelTop", "panelCollapsed"],
-    (result) => {
-      if (!shellEl) return;
-      if (typeof result.panelLeft === "number") {
-        shellEl.style.left = `${result.panelLeft}px`;
-        shellEl.style.right = "auto";
-      }
-      if (typeof result.panelTop === "number") {
-        shellEl.style.top = `${result.panelTop}px`;
-      }
-      shellEl.classList.toggle("ct-collapsed", !!result.panelCollapsed);
+  chrome.storage.local.get(["panelLeft", "panelTop", "panelCollapsed"], (result) => {
+    if (!shellEl) return;
+
+    const width = shellEl.offsetWidth || 380;
+    const height = shellEl.classList.contains("ct-collapsed")
+      ? 48
+      : shellEl.offsetHeight || 360;
+
+    if (typeof result.panelLeft === "number" && typeof result.panelTop === "number") {
+      const pos = clampToViewport(result.panelLeft, result.panelTop, width, height);
+      shellEl.style.left = `${pos.left}px`;
+      shellEl.style.top = `${pos.top}px`;
+      shellEl.style.right = "auto";
+    } else {
+      shellEl.style.top = "72px";
+      shellEl.style.right = "18px";
+      shellEl.style.left = "auto";
     }
-  );
+
+    // Prefer expanded when enabling; only keep collapsed if user set it.
+    if (result.panelCollapsed) {
+      shellEl.classList.add("ct-collapsed");
+    }
+  });
 }
 
 function onDragStart(event) {
@@ -108,10 +131,16 @@ function onDragStart(event) {
 
 function onDragMove(event) {
   if (!dragging || !shellEl) return;
-  const left = Math.max(8, event.clientX - dragOffsetX);
-  const top = Math.max(8, event.clientY - dragOffsetY);
-  shellEl.style.left = `${left}px`;
-  shellEl.style.top = `${top}px`;
+  const width = shellEl.offsetWidth || 380;
+  const height = shellEl.offsetHeight || 48;
+  const pos = clampToViewport(
+    event.clientX - dragOffsetX,
+    event.clientY - dragOffsetY,
+    width,
+    height
+  );
+  shellEl.style.left = `${pos.left}px`;
+  shellEl.style.top = `${pos.top}px`;
   shellEl.style.right = "auto";
 }
 
@@ -128,23 +157,27 @@ function onDragEnd() {
 
 function showPanel({ expand = true } = {}) {
   ensureShell();
-  shellEl.style.display = "flex";
+  shellEl.style.setProperty("display", "flex", "important");
+  shellEl.style.setProperty("visibility", "visible", "important");
+  shellEl.style.setProperty("opacity", "1", "important");
+  shellEl.hidden = false;
   if (expand) {
     shellEl.classList.remove("ct-collapsed");
+    chrome.storage.local.set({ panelCollapsed: false });
   }
   updateShellChrome();
 }
 
 function hidePanel() {
   if (!shellEl) return;
-  shellEl.style.display = "none";
+  shellEl.style.setProperty("display", "none", "important");
 }
 
 function updateShellChrome() {
   if (!shellEl) return;
   const dot = shellEl.querySelector("[data-dot]");
   shellEl.classList.toggle("ct-capturing", capturing);
-  dot.classList.toggle("ct-live", capturing);
+  dot?.classList.toggle("ct-live", capturing);
   if (hotkeyEl) hotkeyEl.textContent = formatHotkey(hotkey);
 }
 
@@ -169,15 +202,9 @@ function isEditableTarget(el) {
   if (tag === "TEXTAREA") return true;
   if (tag === "INPUT") {
     const type = (el.getAttribute("type") || "text").toLowerCase();
-    return [
-      "text",
-      "search",
-      "email",
-      "url",
-      "tel",
-      "password",
-      "number",
-    ].includes(type);
+    return ["text", "search", "email", "url", "tel", "password", "number"].includes(
+      type
+    );
   }
   return Boolean(el.closest?.('[contenteditable="true"]'));
 }
@@ -206,11 +233,8 @@ function insertText(el, text) {
     const end = el.selectionEnd ?? el.value.length;
     const next = el.value.slice(0, start) + text + el.value.slice(end);
 
-    if (descriptor?.set) {
-      descriptor.set.call(el, next);
-    } else {
-      el.value = next;
-    }
+    if (descriptor?.set) descriptor.set.call(el, next);
+    else el.value = next;
 
     const caret = start + text.length;
     try {
@@ -260,10 +284,7 @@ function dispatchEnter(el) {
 async function pasteTranscriptAndSend() {
   const editable = resolveEditable(document.activeElement);
   if (!editable) {
-    const { floatingVisible } = await chrome.storage.local.get({
-      floatingVisible: true,
-    });
-    if (floatingVisible !== false) showPanel();
+    showPanel({ expand: true });
     return;
   }
 
@@ -275,31 +296,34 @@ async function pasteTranscriptAndSend() {
   dispatchEnter(editable);
 }
 
+async function isFloatingEnabled() {
+  const local = await chrome.storage.local.get({ floatingVisible: true });
+  return local.floatingVisible !== false;
+}
+
 async function init() {
-  const stored = await chrome.storage.sync.get(["hotkey"]);
-  if (stored.hotkey) hotkey = stored.hotkey;
+  try {
+    const stored = await chrome.storage.sync.get(["hotkey"]);
+    if (stored.hotkey) hotkey = stored.hotkey;
 
-  const [state, local] = await Promise.all([
-    chrome.runtime.sendMessage({ type: "GET_STATE" }).catch(() => null),
-    chrome.storage.local.get({ floatingVisible: true }),
-  ]);
+    const state = await chrome.runtime
+      .sendMessage({ type: "GET_STATE" })
+      .catch(() => null);
+    if (state) {
+      capturing = !!state.capturing;
+      transcript = state.transcript || "";
+      partial = state.partial || "";
+    }
 
-  if (state) {
-    capturing = !!state.capturing;
-    transcript = state.transcript || "";
-    partial = state.partial || "";
-  }
-
-  if (local.floatingVisible === false) {
-    hidePanel();
-    return;
-  }
-
-  showPanel({
-    expand: capturing || Boolean(transcript.trim() || partial.trim()),
-  });
-  if (!capturing && !transcript.trim() && !partial.trim()) {
-    shellEl.classList.add("ct-collapsed");
+    // Extension enabled on this page → show float unless user toggled it off.
+    if (await isFloatingEnabled()) {
+      showPanel({ expand: true });
+    } else {
+      hidePanel();
+    }
+  } catch (error) {
+    console.warn("[CallTogether] init failed, forcing panel visible", error);
+    showPanel({ expand: true });
   }
 }
 
@@ -307,28 +331,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "SHOW_PANEL") {
     showPanel({ expand: true });
     sendResponse?.({ ok: true });
-    return;
+    return true;
   }
 
   if (message?.type === "HIDE_PANEL") {
     hidePanel();
     sendResponse?.({ ok: true });
-    return;
+    return true;
   }
 
-  if (message?.type !== "STATE_UPDATE") return;
-  capturing = !!message.capturing;
-  transcript = message.transcript || "";
-  partial = message.partial || "";
-  chrome.storage.local.get({ floatingVisible: true }, (local) => {
-    if (local.floatingVisible === false) {
-      hidePanel();
-      return;
-    }
-    showPanel({
-      expand: capturing || Boolean(transcript.trim() || partial.trim()),
+  if (message?.type === "STATE_UPDATE") {
+    capturing = !!message.capturing;
+    transcript = message.transcript || "";
+    partial = message.partial || "";
+    isFloatingEnabled().then((enabled) => {
+      if (!enabled) {
+        hidePanel();
+        return;
+      }
+      showPanel({ expand: true });
+      updateShellChrome();
     });
-  });
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -353,4 +377,16 @@ window.addEventListener(
   true
 );
 
-init();
+// SPA sites mount late — retry once body exists / after a tick.
+if (document.body) {
+  init();
+} else {
+  document.addEventListener("DOMContentLoaded", init, { once: true });
+}
+setTimeout(() => {
+  isFloatingEnabled().then((enabled) => {
+    if (enabled && !document.getElementById(SHELL_ID)) {
+      showPanel({ expand: true });
+    }
+  });
+}, 1200);
