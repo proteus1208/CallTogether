@@ -59,7 +59,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.8`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.13`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -507,3 +507,8 @@ setTimeout(() => {
     }
   });
 }, 1200);
+
+// Closing this tab should stop share + dismiss Chrome's "Stop sharing" bar.
+window.addEventListener("pagehide", () => {
+  chrome.runtime.sendMessage({ type: "OWNER_TAB_UNLOADING" }).catch(() => {});
+});

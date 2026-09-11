@@ -11,13 +11,15 @@ const DEFAULT_SETTINGS = {
 
 const OFFSCREEN_URL = "offscreen/speech.html";
 const CAPTURE_HOST_URL = "capture/host.html";
-const SCRIPT_WORD_LIMIT = 1000;
+const SCRIPT_WORD_LIMIT = 20000;
 
 let capturing = false;
 let transcript = "";
 let partial = "";
 let captureHostWindowId = null;
 let pendingStreamId = null;
+/** Tab that started share — closing it stops capture + sharing banner. */
+let ownerTabId = null;
 let lastPartialAt = 0;
 let utteranceEpoch = 0;
 let actionBusy = false;
@@ -81,9 +83,7 @@ async function finalizePendingSession() {
   utteranceEpoch += 1;
   appendScriptSession(text);
   await broadcastState();
-  if (translateOpen) {
-    translateSpeechSession(text).catch(() => {});
-  }
+  translateSpeechSession(text).catch(() => {});
 }
 
 async function sendCaptureCommand(type) {
@@ -95,8 +95,8 @@ async function sendCaptureCommand(type) {
 }
 
 /**
- * Grey italic text = live partial session.
- * Wait until that session finalizes (partial cleared) before paste/send.
+ * Grey italic / held session must finish (including the 1s close delay)
+ * before paste/send.
  */
 async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
   // No live partial / held session → already complete.
@@ -104,19 +104,25 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
 
   await sendCaptureCommand("CAPTURE_PAGE_PAUSE");
   await sleep(80);
+  // Nudge Vosk to emit a final, then still honor the normal 1s session close.
   await sendCaptureCommand("CAPTURE_PAGE_FLUSH");
   await sleep(200);
-
-  // Paste/send should not wait the 1s grace — close any held session now.
-  if (pendingSessionParts.length) {
-    await finalizePendingSession();
-  }
 
   const start = Date.now();
   let lastFlushAt = Date.now();
 
-  while (partial.trim() && Date.now() - start < timeoutMs) {
-    // Keep asking Vosk to finalize; do NOT proceed while grey italic remains.
+  while (
+    (partial.trim() || pendingSessionParts.length) &&
+    Date.now() - start < timeoutMs
+  ) {
+    if (pendingSessionParts.length) {
+      // Held finals: wait for the regular 1s close timer (do not cut early).
+      if (!sessionCloseTimer) scheduleSessionClose();
+      await sleep(100);
+      continue;
+    }
+
+    // Still only a live partial — keep asking Vosk to finalize.
     if (Date.now() - lastFlushAt >= 1000) {
       await sendCaptureCommand("CAPTURE_PAGE_FLUSH");
       lastFlushAt = Date.now();
@@ -124,14 +130,10 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
     await sleep(100);
   }
 
-  // Allow a late RESULT to land after partial clears.
-  await sleep(200);
+  // Timeout fallback: promote leftover grey italic into final transcript.
   if (pendingSessionParts.length) {
     await finalizePendingSession();
-  }
-
-  // Timeout fallback: promote leftover grey italic into final transcript.
-  if (partial.trim()) {
+  } else if (partial.trim()) {
     clearSessionCloseTimer();
     pendingSessionParts = [];
     const leftover = partial.trim();
@@ -139,9 +141,7 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
     transcript = transcript ? `${transcript} ${leftover}` : leftover;
     appendScriptSession(leftover);
     await broadcastState({ busy: actionBusy, status: "Speech session timed out" });
-    if (translateOpen) {
-      translateSpeechSession(leftover).catch(() => {});
-    }
+    translateSpeechSession(leftover).catch(() => {});
   }
 
   await sendCaptureCommand("CAPTURE_PAGE_RESUME");
@@ -211,9 +211,9 @@ function stopLiveTranslate({ clearPartial = true } = {}) {
   if (clearPartial) translatedPartial = "";
 }
 
-/** Schedule/continue live partial translate; timer starts after each request finishes. */
+/** Schedule/continue live partial translate; runs even if the translate pane is collapsed. */
 function armLiveTranslate() {
-  if (!translateOpen || !partial.trim()) return;
+  if (!partial.trim()) return;
   if (liveTranslateBusy || liveTranslateTimer) return;
   liveTranslateTimer = setTimeout(() => {
     liveTranslateTimer = null;
@@ -222,7 +222,6 @@ function armLiveTranslate() {
 }
 
 async function runLivePartialTranslate() {
-  if (!translateOpen) return;
   const source = partial.trim();
   if (!source) {
     // Session may have just finalized — keep last mid translation until final lands.
@@ -233,7 +232,7 @@ async function runLivePartialTranslate() {
   liveTranslateBusy = true;
   try {
     const piece = (await translateWithGoogle(source, translateTarget)).trim();
-    if (translateOpen && partial.trim()) {
+    if (partial.trim()) {
       translatedPartial = piece || source;
       await broadcastState();
     }
@@ -242,7 +241,7 @@ async function runLivePartialTranslate() {
   } finally {
     liveTranslateBusy = false;
     // Next tick only after this request finished.
-    if (translateOpen && partial.trim()) {
+    if (partial.trim()) {
       clearLiveTranslateTimer();
       liveTranslateTimer = setTimeout(() => {
         liveTranslateTimer = null;
@@ -280,11 +279,27 @@ async function translateWithGoogle(text, target = translateTarget) {
     url.searchParams.set("dt", "t");
     url.searchParams.set("q", chunk);
 
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Translate failed (${response.status})`);
+    let data = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetch(url.toString());
+        if (response.status === 429 || response.status === 503) {
+          await sleep(400 * (attempt + 1));
+          continue;
+        }
+        if (!response.ok) {
+          throw new Error(`Translate failed (${response.status})`);
+        }
+        data = await response.json();
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        await sleep(400 * (attempt + 1));
+      }
     }
-    const data = await response.json();
+    if (lastError) throw lastError;
     if (!Array.isArray(data?.[0])) continue;
     parts.push(
       data[0]
@@ -299,7 +314,7 @@ async function translateWithGoogle(text, target = translateTarget) {
 /** Translate one finalized speech session and append (no full re-run). */
 async function translateSpeechSession(chunk) {
   const source = String(chunk || "").trim();
-  if (!translateOpen || !source) return;
+  if (!source) return;
 
   try {
     const piece = (await translateWithGoogle(source, translateTarget)).trim();
@@ -318,37 +333,57 @@ async function translateSpeechSession(chunk) {
   }
 }
 
-/** Full retranslate — newest sessions first so the latest chat updates fastest. */
+/** Full retranslate — last session first, then every remaining session (newest → oldest). */
 async function retranslateAll() {
   if (translateInFlight) {
     translateQueued = true;
     return;
   }
 
-  if (!scriptSessions.length) {
+  // Snapshot so live appends during retranslate do not skip older sessions.
+  const sources = scriptSessions.map((s) => String(s || "").trim()).filter(Boolean);
+  if (!sources.length) {
     translatedSessions = [];
     await broadcastState();
     return;
   }
 
   translateInFlight = true;
+  const target = translateTarget;
   try {
-    const n = scriptSessions.length;
-    // Preserve length; replace slots newest → oldest.
-    if (translatedSessions.length !== n) {
-      translatedSessions = scriptSessions.map(
-        (_, i) => translatedSessions[i] || ""
-      );
-    }
-    for (let i = n - 1; i >= 0; i -= 1) {
-      const session = scriptSessions[i];
-      const piece = (await translateWithGoogle(session, translateTarget)).trim();
-      translatedSessions[i] = piece || session;
+    const n = sources.length;
+    const next = sources.map((_, i) => translatedSessions[i] || "");
+
+    const translateOne = async (i) => {
+      const session = sources[i];
+      try {
+        const piece = (await translateWithGoogle(session, target)).trim();
+        next[i] = piece || session;
+      } catch {
+        // Keep prior text for this slot; continue the rest.
+        if (!next[i]) next[i] = session;
+      }
+      translatedSessions = next.slice();
       await broadcastState({
-        status: i === 0 ? "Translated" : `Translating… ${n - i}/${n}`,
+        status: `Translating… ${n - i}/${n}`,
       });
+      // Light spacing to avoid free-API throttling cutting the batch short.
+      await sleep(60);
+    };
+
+    // 1) Latest session first for snappy feedback.
+    await translateOne(n - 1);
+    // 2) All remaining sessions, newest → oldest.
+    for (let i = n - 2; i >= 0; i -= 1) {
+      if (translateTarget !== target) break; // language changed again
+      await translateOne(i);
     }
-    trimSessionsToWordLimit();
+
+    translatedSessions = next.slice();
+    // Align with current archive length if speech continued during retranslate.
+    while (translatedSessions.length < scriptSessions.length) {
+      translatedSessions.push("");
+    }
     await broadcastState({ status: "Translated" });
   } catch (error) {
     await broadcastState({
@@ -605,6 +640,9 @@ async function closeCaptureHost() {
 async function stopCapture() {
   capturing = false;
   partial = "";
+  ownerTabId = null;
+  clearSessionCloseTimer();
+  stopLiveTranslate({ clearPartial: true });
   try {
     await chrome.runtime.sendMessage({
       type: "OFFSCREEN_STOP_CAPTURE",
@@ -620,8 +658,31 @@ async function stopCapture() {
   }
   await closeOffscreenDocument();
   await closeCaptureHost();
-  await broadcastState();
+  await broadcastState({ status: "Stopped" });
   return { ok: true };
+}
+
+async function rememberOwnerTab(sender) {
+  if (sender?.tab?.id != null) {
+    ownerTabId = sender.tab.id;
+    return;
+  }
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null && tab.url && /^https?:/i.test(tab.url)) {
+      ownerTabId = tab.id;
+    }
+  } catch {
+    // ignore
+  }
+}
+
+async function stopCaptureIfOwnerTab(tabId) {
+  if (tabId == null || tabId !== ownerTabId) return;
+  ownerTabId = null;
+  if (capturing || captureHostWindowId != null) {
+    await stopCapture();
+  }
 }
 
 async function clearTranscript() {
@@ -642,6 +703,7 @@ chrome.windows.onRemoved.addListener((windowId) => {
     captureHostWindowId = null;
     if (capturing) {
       capturing = false;
+      stopLiveTranslate({ clearPartial: true });
       if (pendingSessionParts.length) {
         finalizePendingSession().catch(() => {});
       } else {
@@ -650,6 +712,10 @@ chrome.windows.onRemoved.addListener((windowId) => {
       }
     }
   }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  stopCaptureIfOwnerTab(tabId).catch(() => {});
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -687,6 +753,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "OPEN_CAPTURE_HOST": {
+        await rememberOwnerTab(sender);
         sendResponse(await openCaptureHost(message.streamId || null));
         break;
       }
@@ -703,9 +770,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "PANEL_START_CAPTURE": {
+        await rememberOwnerTab(sender);
         await chrome.storage.local.set({ floatingVisible: true });
         await sendToActiveHttpTab({ type: "SHOW_PANEL" });
         sendResponse(await openCaptureHost(message.streamId || null));
+        break;
+      }
+      case "OWNER_TAB_UNLOADING": {
+        await stopCaptureIfOwnerTab(sender.tab?.id);
+        sendResponse({ ok: true });
         break;
       }
       case "STOP_CAPTURE": {
@@ -717,18 +790,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "TOGGLE_TRANSLATE": {
+        // Pane open/close only — keep transcript/translation data and keep translating.
         translateOpen = message.open ?? !translateOpen;
-        if (!translateOpen) stopLiveTranslate();
         await broadcastState({
           status: translateOpen ? "Translate open" : "Translate closed",
         });
-        // On first open with existing speech, fill translation once.
-        if (translateOpen && scriptSessions.length && !translatedSessions.length) {
-          await retranslateAll();
-        }
-        if (translateOpen && partial.trim()) {
-          armLiveTranslate();
-        }
+        if (partial.trim()) armLiveTranslate();
         sendResponse({ ok: true, translateOpen });
         break;
       }
@@ -740,12 +807,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         translateTarget = next;
         await chrome.storage.local.set({ translateTarget });
-        stopLiveTranslate();
+        stopLiveTranslate({ clearPartial: false });
         await broadcastState({ status: "Updating translation…" });
-        if (translateOpen) {
-          await retranslateAll();
-          if (partial.trim()) armLiveTranslate();
-        }
+        await retranslateAll();
+        if (partial.trim()) armLiveTranslate();
         sendResponse({ ok: true, translateTarget });
         break;
       }
@@ -786,6 +851,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "CAPTURE_STARTED": {
         capturing = true;
+        // Keep AI-tab owner if already set; otherwise bind active https tab.
+        if (ownerTabId == null) {
+          await rememberOwnerTab(null);
+        }
         await broadcastState();
         await hideCaptureHost(captureHostWindowId);
         // Some WMs ignore the first minimize right after getDisplayMedia.
@@ -799,17 +868,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const chunk = (message.text || "").trim();
         if (chunk) {
           // Hold finals for 1s; merge into one session if speech resumes.
+          // Paste/submit also waits this delay (do not finalize early when busy).
           pendingSessionParts.push(chunk);
           utteranceEpoch += 1;
           lastPartialAt = Date.now();
           partial = heldSessionText();
-          if (actionBusy) {
-            await finalizePendingSession();
-          } else {
-            scheduleSessionClose();
-            await broadcastState();
-            if (translateOpen) armLiveTranslate();
-          }
+          scheduleSessionClose();
+          await broadcastState();
+          armLiveTranslate();
         }
         sendResponse({ ok: true });
         break;
@@ -824,7 +890,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             partial = composeLivePartial(text);
             utteranceEpoch += 1;
             await broadcastState();
-            if (translateOpen) armLiveTranslate();
+            armLiveTranslate();
           } else {
             // Vosk cleared partial after a final — keep held text as live session.
             partial = heldSessionText();
@@ -833,7 +899,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } else {
           partial = text;
           if (partial) utteranceEpoch += 1;
-          if (!partial) stopLiveTranslate();
+          if (!partial) stopLiveTranslate({ clearPartial: false });
           await broadcastState();
           if (partial) armLiveTranslate();
         }

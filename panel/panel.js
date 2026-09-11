@@ -255,13 +255,17 @@ function renderSessionList(container, sessions, { checkpoint = null } = {}) {
       container.appendChild(mark);
     }
   }
+  // If translations lag behind, still show the mark at the end when pasted past this list.
   if (
     checkpoint != null &&
     checkpoint > 0 &&
-    checkpoint === list.length &&
-    list.length > 0
+    list.length > 0 &&
+    checkpoint > list.length
   ) {
-    // Checkpoint already inserted after last item via i === checkpoint - 1.
+    const mark = document.createElement("div");
+    mark.className = "paste-checkpoint";
+    mark.title = "Last paste point";
+    container.appendChild(mark);
   }
 }
 
@@ -290,7 +294,9 @@ function renderTranscript() {
 
 function renderTranslation() {
   const stick = isPinnedToBottom(translateTextEl);
-  renderSessionList(translateSessionsEl, localTranslatedSessions);
+  renderSessionList(translateSessionsEl, localTranslatedSessions, {
+    checkpoint: localPasteCheckpoint,
+  });
   if (translatePartialEl) {
     translatePartialEl.textContent = localTranslatedPartial.trim();
     translatePartialEl.classList.toggle(

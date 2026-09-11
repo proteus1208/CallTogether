@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.6.8",
+  "version": "1.6.13",
   "description": "Capture call audio, live transcript, hotkey paste into AI chat.",
   "permissions": [
     "storage",

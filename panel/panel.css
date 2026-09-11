@@ -172,8 +172,11 @@ body {
 
 .paste-checkpoint {
   height: 0;
-  margin: 2px 0 10px;
-  border-top: 2px solid #e23b3b;
+  margin: 4px 0 8px;
+  border-top: 1px solid #2aa86f;
+  box-shadow:
+    0 0 4px rgba(42, 168, 111, 0.55),
+    0 0 10px rgba(42, 168, 111, 0.28);
   flex: 0 0 auto;
 }
 

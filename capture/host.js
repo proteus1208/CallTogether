@@ -15,6 +15,18 @@ let modelBuffer = null;
 let starting = false;
 let audioPaused = false;
 
+function releaseMediaTracks() {
+  if (!mediaStream) return;
+  mediaStream.getTracks().forEach((track) => {
+    try {
+      track.stop();
+    } catch {
+      // ignore
+    }
+  });
+  mediaStream = null;
+}
+
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
   statusEl.classList.toggle("error", isError);
@@ -314,10 +326,7 @@ async function stopCapture(ended = false) {
     }
     audioContext = null;
   }
-  if (mediaStream) {
-    mediaStream.getTracks().forEach((track) => track.stop());
-    mediaStream = null;
-  }
+  releaseMediaTracks();
   sendToSandbox({ type: "RESET" });
   shareBtn.disabled = false;
   stopBtn.disabled = true;
@@ -399,3 +408,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 (async () => {
   setStatus("Click Choose sound source");
 })();
+
+// Ensure Chrome's "Stop sharing" bar goes away when this host is closed.
+window.addEventListener("pagehide", () => {
+  releaseMediaTracks();
+});
+window.addEventListener("beforeunload", () => {
+  releaseMediaTracks();
+});
