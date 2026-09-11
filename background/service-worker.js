@@ -24,47 +24,50 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function flushRecognizer() {
+async function sendCaptureCommand(type) {
   try {
-    await chrome.runtime.sendMessage({ type: "CAPTURE_PAGE_FLUSH" });
+    await chrome.runtime.sendMessage({ type });
   } catch {
     // capture host may be closed
   }
 }
 
-/** Wait until the current speech utterance is finalized into transcript. */
-async function waitForUtteranceComplete({ timeoutMs = 10000 } = {}) {
-  if (!capturing) return;
+/**
+ * Grey italic text = live partial session.
+ * Wait until that session finalizes (partial cleared) before paste/send.
+ */
+async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
+  // No live partial → current session already complete.
+  if (!partial.trim()) return;
 
-  await flushRecognizer();
-
-  // No live partial — brief settle for a pending final chunk.
-  if (!partial.trim()) {
-    await sleep(220);
-    if (!partial.trim()) return;
-  }
+  await sendCaptureCommand("CAPTURE_PAGE_PAUSE");
+  await sleep(80);
+  await sendCaptureCommand("CAPTURE_PAGE_FLUSH");
 
   const start = Date.now();
-  let lastText = partial;
-  let stableSince = Date.now();
+  let lastFlushAt = Date.now();
 
-  while (Date.now() - start < timeoutMs) {
-    if (!partial.trim()) {
-      await sleep(180);
-      if (!partial.trim()) return;
+  while (partial.trim() && Date.now() - start < timeoutMs) {
+    // Keep asking Vosk to finalize; do NOT proceed while grey italic remains.
+    if (Date.now() - lastFlushAt >= 1000) {
+      await sendCaptureCommand("CAPTURE_PAGE_FLUSH");
+      lastFlushAt = Date.now();
     }
-
-    if (partial !== lastText) {
-      lastText = partial;
-      stableSince = Date.now();
-    } else if (Date.now() - stableSince >= 650) {
-      await flushRecognizer();
-      await sleep(250);
-      return;
-    }
-
-    await sleep(90);
+    await sleep(100);
   }
+
+  // Allow a late RESULT to land after partial clears.
+  await sleep(200);
+
+  // Timeout fallback: promote leftover grey italic into final transcript.
+  if (partial.trim()) {
+    const leftover = partial.trim();
+    partial = "";
+    transcript = transcript ? `${transcript} ${leftover}` : leftover;
+    await broadcastState({ busy: actionBusy, status: "Speech session timed out" });
+  }
+
+  await sendCaptureCommand("CAPTURE_PAGE_RESUME");
 }
 
 async function setActionBusy(busy, status) {
@@ -76,7 +79,9 @@ async function setActionBusy(busy, status) {
 }
 
 async function consumeTranscriptText() {
-  await waitForUtteranceComplete();
+  // Block while grey-italic partial speech is still running.
+  await waitForLiveSpeechSession();
+
   const text = [transcript, partial].filter(Boolean).join(" ").trim();
   transcript = "";
   partial = "";
@@ -367,7 +372,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "SUBMIT_TRANSCRIPT": {
-        await setActionBusy(true, "Finalizing…");
+        await setActionBusy(true, "Waiting for speech…");
         try {
           const text = await consumeTranscriptText();
           if (!text) {
@@ -387,7 +392,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "CONSUME_TRANSCRIPT": {
-        await setActionBusy(true, "Finalizing…");
+        await setActionBusy(true, "Waiting for speech…");
         try {
           const text = await consumeTranscriptText();
           sendResponse({ ok: true, text });

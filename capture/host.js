@@ -13,6 +13,7 @@ let sandboxReady = false;
 let modelReady = false;
 let modelBuffer = null;
 let starting = false;
+let audioPaused = false;
 
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
@@ -218,7 +219,7 @@ async function startAudioPipeline(stream) {
   silentGain.gain.value = 0;
 
   processorNode.onaudioprocess = (event) => {
-    if (!modelReady) return;
+    if (!modelReady || audioPaused) return;
     const input = event.inputBuffer.getChannelData(0);
     const pcm = new Float32Array(input);
     sendToSandbox(
@@ -347,6 +348,8 @@ window.addEventListener("message", (event) => {
   }
   if (data.type === "RESULT" && data.text) {
     chrome.runtime.sendMessage({ type: "TRANSCRIPT_CHUNK", text: data.text });
+    // End the live (grey italic) session explicitly.
+    chrome.runtime.sendMessage({ type: "TRANSCRIPT_PARTIAL", text: "" });
     return;
   }
   if (data.type === "PARTIAL") {
@@ -369,6 +372,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "CAPTURE_PAGE_STOP" || message?.type === "STOP_CAPTURE") {
     stopCapture(false).then(() => sendResponse({ ok: true }));
     return true;
+  }
+  if (message?.type === "CAPTURE_PAGE_PAUSE") {
+    audioPaused = true;
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message?.type === "CAPTURE_PAGE_RESUME") {
+    audioPaused = false;
+    sendResponse({ ok: true });
+    return false;
   }
   if (message?.type === "CAPTURE_PAGE_FLUSH") {
     sendToSandbox({ type: "FLUSH" });

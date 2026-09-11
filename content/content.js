@@ -58,7 +58,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.11`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.12`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -374,9 +374,10 @@ async function applyPaste(text, { send = false } = {}) {
 
   insertText(editable, value);
   if (send) {
+    // Let the pasted text settle in the composer, then send.
+    await sleep(300);
     dispatchEnter(editable);
     tryClickSendButton(editable);
-    // Let the site accept the value + Enter, then clear the composer.
     await sleep(60);
     clearEditable(editable);
   }

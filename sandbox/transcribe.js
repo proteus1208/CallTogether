@@ -323,6 +323,9 @@ window.addEventListener("message", async (event) => {
         } catch (error) {
           post({ type: "ERROR", error: error?.message || String(error) });
         }
+      } else {
+        // Nothing in progress — clear any stale partial UI.
+        post({ type: "PARTIAL", text: "" });
       }
       return;
     }
