@@ -90,7 +90,7 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 8px;
+  gap: 0;
   align-items: stretch;
 }
 
@@ -102,16 +102,11 @@ body {
   gap: 4px;
 }
 
-/* Keep transcript column at full closed width; when shell is 2x, this stays ~same px. */
+/* Transcript stays flexible and fills leftover space; its closed width is preserved
+   because the shell grows by a fixed translate pane width (not 50/50). */
 .transcript-col {
   flex: 1 1 auto;
-  width: 100%;
-  transition: flex-basis var(--pane-ease), max-width var(--pane-ease);
-}
-
-.panel.translate-open .transcript-col {
-  flex: 0 0 calc(50% - 4px);
-  max-width: calc(50% - 4px);
+  min-width: 0;
 }
 
 .col-label {
@@ -190,23 +185,30 @@ body {
 }
 
 .translate-pane {
+  --translate-w: 360px;
   flex: 0 0 0;
   width: 0;
+  max-width: 0;
+  margin-left: 0;
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
-  transform: translateX(10px);
+  transform: translateX(8px);
   transition:
     opacity var(--pane-ease),
     transform var(--pane-ease),
     flex-basis var(--pane-ease),
-    width var(--pane-ease);
+    width var(--pane-ease),
+    max-width var(--pane-ease),
+    margin-left var(--pane-ease);
 }
 
 .panel.translate-open .translate-pane,
 .translate-pane.is-open {
-  flex: 0 0 calc(50% - 4px);
-  width: calc(50% - 4px);
+  flex: 0 0 var(--translate-w);
+  width: var(--translate-w);
+  max-width: var(--translate-w);
+  margin-left: 8px;
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;

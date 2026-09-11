@@ -138,15 +138,12 @@ const LANGUAGES = [
   { code: "zu", name: "Zulu" },
 ];
 
-const CLOSE_MS = 220;
-
 let localFinal = "";
 let localPartial = "";
 let localTranslated = "";
 let submitBusy = false;
 let translateOpen = false;
 let translateTarget = "zh-CN";
-let closeTimer = null;
 let langMenuOpen = false;
 
 function formatHotkey(config) {
@@ -261,23 +258,11 @@ function renderTranslation() {
 
 function setTranslateOpen(open) {
   const next = !!open;
-  clearTimeout(closeTimer);
-
-  if (next) {
-    translateOpen = true;
-    panelRoot.classList.add("translate-open");
-    translatePane.classList.add("is-open");
-    translatePane.setAttribute("aria-hidden", "false");
-  } else {
-    translateOpen = false;
-    translatePane.classList.remove("is-open");
-    translatePane.setAttribute("aria-hidden", "true");
-    setLangMenuOpen(false);
-    // Keep layout class until fade-out finishes so width/opacity animate together.
-    closeTimer = setTimeout(() => {
-      if (!translateOpen) panelRoot.classList.remove("translate-open");
-    }, CLOSE_MS);
-  }
+  translateOpen = next;
+  panelRoot.classList.toggle("translate-open", next);
+  translatePane.classList.toggle("is-open", next);
+  translatePane.setAttribute("aria-hidden", next ? "false" : "true");
+  if (!next) setLangMenuOpen(false);
 
   translateBtn.classList.toggle("is-active", next);
   translateBtn.setAttribute("aria-pressed", next ? "true" : "false");
@@ -437,16 +422,19 @@ chrome.runtime
   })
   .catch(() => {});
 
-chrome.storage.sync.get(["hotkey", "translateTarget"], (stored) => {
-  setHotkeyBadge(stored?.hotkey || DEFAULT_HOTKEY);
+chrome.storage.local.get(["translateTarget"], (stored) => {
   if (stored?.translateTarget) setLanguageLabel(stored.translateTarget);
+});
+
+chrome.storage.sync.get(["hotkey"], (stored) => {
+  setHotkeyBadge(stored?.hotkey || DEFAULT_HOTKEY);
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes.hotkey) {
     setHotkeyBadge(changes.hotkey.newValue || DEFAULT_HOTKEY);
   }
-  if (area === "sync" && changes.translateTarget?.newValue) {
+  if (area === "local" && changes.translateTarget?.newValue) {
     setLanguageLabel(changes.translateTarget.newValue);
   }
 });

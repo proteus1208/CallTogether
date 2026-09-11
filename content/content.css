@@ -36,8 +36,9 @@
   transition: width 0.22s ease !important;
 }
 
+/* 400 + 8 gap + 360 translate pane */
 #calltogether-float-root.ct-translate-open {
-  width: min(800px, calc(100vw - 24px)) !important;
+  width: min(768px, calc(100vw - 24px)) !important;
 }
 
 #calltogether-float-root.ct-dragging {
@@ -45,7 +46,7 @@
   cursor: grabbing !important;
 }
 
-#calltogether-float-root .ct-header {
+#calltogether-float-root .ct-header { 
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;

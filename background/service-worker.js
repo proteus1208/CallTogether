@@ -25,7 +25,6 @@ let scriptArchive = "";
 let translatedText = "";
 let translateOpen = false;
 let translateTarget = DEFAULT_SETTINGS.translateTarget;
-let translateTimer = null;
 let translateInFlight = false;
 let translateQueued = false;
 
@@ -74,9 +73,10 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
     partial = "";
     transcript = transcript ? `${transcript} ${leftover}` : leftover;
     appendScriptArchive(leftover);
-    await persistTranslationState();
     await broadcastState({ busy: actionBusy, status: "Speech session timed out" });
-    scheduleTranslation();
+    if (translateOpen) {
+      translateSpeechSession(leftover).catch(() => {});
+    }
   }
 
   await sendCaptureCommand("CAPTURE_PAGE_RESUME");
@@ -102,14 +102,6 @@ function trimToLastWords(text, maxWords = SCRIPT_WORD_LIMIT) {
 function appendScriptArchive(chunk) {
   const next = [scriptArchive, chunk].filter(Boolean).join(" ").trim();
   scriptArchive = trimToLastWords(next);
-}
-
-async function persistTranslationState() {
-  await chrome.storage.local.set({
-    scriptArchive,
-    translatedText,
-    translateOpen,
-  });
 }
 
 async function translateWithGoogle(text, target = translateTarget) {
@@ -156,8 +148,27 @@ async function translateWithGoogle(text, target = translateTarget) {
   return parts.join("");
 }
 
-async function refreshTranslation({ force = false } = {}) {
-  if (!translateOpen && !force) return;
+/** Translate one finalized speech session and append (no full re-run). */
+async function translateSpeechSession(chunk) {
+  const source = String(chunk || "").trim();
+  if (!translateOpen || !source) return;
+
+  try {
+    const piece = await translateWithGoogle(source, translateTarget);
+    if (!piece) return;
+    translatedText = trimToLastWords(
+      [translatedText, piece].filter(Boolean).join(" ").trim()
+    );
+    await broadcastState();
+  } catch (error) {
+    await broadcastState({
+      error: error?.message || "Translation failed",
+    });
+  }
+}
+
+/** Full retranslate — only when the user switches language (or first open with backlog). */
+async function retranslateAll() {
   if (translateInFlight) {
     translateQueued = true;
     return;
@@ -166,16 +177,16 @@ async function refreshTranslation({ force = false } = {}) {
   const source = trimToLastWords(scriptArchive);
   if (!source) {
     translatedText = "";
-    await persistTranslationState();
     await broadcastState();
     return;
   }
 
   translateInFlight = true;
   try {
-    translatedText = await translateWithGoogle(source, translateTarget);
-    await persistTranslationState();
-    await broadcastState({ status: translateOpen ? "Translated" : undefined });
+    translatedText = trimToLastWords(
+      await translateWithGoogle(source, translateTarget)
+    );
+    await broadcastState({ status: "Translated" });
   } catch (error) {
     await broadcastState({
       error: error?.message || "Translation failed",
@@ -184,17 +195,9 @@ async function refreshTranslation({ force = false } = {}) {
     translateInFlight = false;
     if (translateQueued) {
       translateQueued = false;
-      scheduleTranslation(120);
+      retranslateAll().catch(() => {});
     }
   }
-}
-
-function scheduleTranslation(delayMs = 450) {
-  if (!translateOpen) return;
-  clearTimeout(translateTimer);
-  translateTimer = setTimeout(() => {
-    refreshTranslation().catch(() => {});
-  }, delayMs);
 }
 
 async function consumeTranscriptText() {
@@ -211,35 +214,34 @@ async function consumeTranscriptText() {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.sync.set(DEFAULT_SETTINGS);
+  const syncStored = await chrome.storage.sync.get(["hotkey"]);
+  if (!syncStored.hotkey) {
+    await chrome.storage.sync.set({ hotkey: DEFAULT_SETTINGS.hotkey });
+  }
+  const localStored = await chrome.storage.local.get(["translateTarget"]);
+  if (!localStored.translateTarget) {
+    await chrome.storage.local.set({
+      translateTarget: DEFAULT_SETTINGS.translateTarget,
+    });
+  }
+  // Drop any previously persisted chat/translation history.
+  await chrome.storage.local.remove([
+    "scriptArchive",
+    "translatedText",
+    "translateOpen",
+  ]);
   await chrome.storage.local.set({
     floatingVisible: false,
   });
 });
 
-chrome.storage.sync.get(["translateTarget"], (stored) => {
+chrome.storage.local.get(["translateTarget"], (stored) => {
   if (stored?.translateTarget) translateTarget = stored.translateTarget;
 });
 
-chrome.storage.local.get(
-  ["scriptArchive", "translatedText", "translateOpen"],
-  (stored) => {
-    if (typeof stored.scriptArchive === "string") {
-      scriptArchive = trimToLastWords(stored.scriptArchive);
-    }
-    if (typeof stored.translatedText === "string") {
-      translatedText = stored.translatedText;
-    }
-    if (typeof stored.translateOpen === "boolean") {
-      translateOpen = stored.translateOpen;
-    }
-  }
-);
-
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && changes.translateTarget?.newValue) {
+  if (area === "local" && changes.translateTarget?.newValue) {
     translateTarget = changes.translateTarget.newValue;
-    scheduleTranslation(100);
   }
 });
 
@@ -532,12 +534,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "TOGGLE_TRANSLATE": {
         translateOpen = message.open ?? !translateOpen;
-        await persistTranslationState();
         await broadcastState({
           status: translateOpen ? "Translate open" : "Translate closed",
         });
-        if (translateOpen) {
-          await refreshTranslation({ force: true });
+        // On first open with existing speech, fill translation once.
+        if (translateOpen && scriptArchive && !translatedText.trim()) {
+          await retranslateAll();
         }
         sendResponse({ ok: true, translateOpen });
         break;
@@ -549,10 +551,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
         translateTarget = next;
-        await chrome.storage.sync.set({ translateTarget });
+        await chrome.storage.local.set({ translateTarget });
         await broadcastState({ status: "Updating translation…" });
         if (translateOpen) {
-          await refreshTranslation({ force: true });
+          await retranslateAll();
         }
         sendResponse({ ok: true, translateTarget });
         break;
@@ -610,9 +612,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           partial = "";
           utteranceEpoch += 1;
           appendScriptArchive(chunk);
-          await persistTranslationState();
           await broadcastState();
-          scheduleTranslation();
+          // Translate only this speech session (append), never re-run the whole log.
+          if (translateOpen) {
+            translateSpeechSession(chunk).catch(() => {});
+          }
         }
         sendResponse({ ok: true });
         break;
