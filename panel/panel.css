@@ -371,7 +371,7 @@ body {
   scrollbar-color: rgba(26, 35, 48, 0.28) transparent;
 }
 
-.lang-menu li button {
+.lang-menu:not(.stt-menu) li button {
   width: 100%;
   text-align: left;
   appearance: none;
@@ -386,8 +386,8 @@ body {
   box-shadow: none;
 }
 
-.lang-menu li button:hover,
-.lang-menu li button.is-active {
+.lang-menu:not(.stt-menu) li button:hover,
+.lang-menu:not(.stt-menu) li button.is-active {
   background: rgba(31, 157, 108, 0.12);
   color: #147a54;
 }
@@ -398,22 +398,35 @@ body {
   color: var(--muted);
 }
 
+.stt-menu {
+  overflow-x: hidden;
+}
+
+.stt-menu ul {
+  max-height: 280px;
+  overflow-x: hidden;
+}
+
 .stt-menu li {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
 }
 
 .stt-menu li .stt-select {
-  flex: 1;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   text-align: left;
   appearance: none;
   border: 0;
   border-radius: 8px;
-  padding: 7px 8px;
+  padding: 7px 6px;
   background: transparent;
   color: var(--text);
   font-size: 12px;
@@ -426,13 +439,13 @@ body {
 .stt-menu li .stt-select-text {
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .stt-menu li .stt-check {
   flex: 0 0 16px;
   width: 16px;
   height: 16px;
-  margin-top: 1px;
   color: #147a54;
 }
 
@@ -445,6 +458,7 @@ body {
 .stt-menu li .stt-check-empty {
   width: 16px;
   height: 16px;
+  flex: 0 0 16px;
 }
 
 .stt-menu li .stt-select:hover,
@@ -459,30 +473,36 @@ body {
   cursor: default;
 }
 
-.stt-menu li .stt-add {
+.stt-menu li .stt-add,
+.stt-menu li .stt-add.ghost {
   flex: 0 0 auto;
   appearance: none;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 8px;
-  min-width: 28px;
+  width: 28px;
   height: 28px;
-  padding: 0 8px;
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 650;
+  min-width: 28px;
+  padding: 0;
+  margin-left: 2px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
   box-shadow: none;
 }
 
-.stt-menu li .stt-add:hover:not(:disabled) {
-  border-color: rgba(31, 157, 108, 0.45);
+.stt-menu li .stt-add:hover:not(:disabled),
+.stt-menu li .stt-add.ghost:hover:not(:disabled) {
+  background: rgba(31, 157, 108, 0.1);
   color: #147a54;
+  border: 0;
+  box-shadow: none;
 }
 
 .stt-menu li .stt-add:disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -498,6 +518,9 @@ body {
   font-weight: 500;
   color: var(--muted);
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .actions {

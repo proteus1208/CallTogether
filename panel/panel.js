@@ -401,7 +401,7 @@ function renderSttList(filter = "") {
     if (!item.installed) {
       const addBtn = document.createElement("button");
       addBtn.type = "button";
-      addBtn.className = "stt-add";
+      addBtn.className = "stt-add ghost";
       addBtn.title = "Download language model";
       addBtn.setAttribute("aria-label", `Add ${item.name}`);
       addBtn.textContent = sttInstallBusy === item.code ? "…" : "+";
