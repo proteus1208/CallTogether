@@ -1,3 +1,11 @@
+const STT_MODEL_CATALOG = [
+  { code: "en", name: "English", sizeLabel: "40 MB", bundledPath: "models/en-us-small.tar.gz" },
+  { code: "es", name: "Spanish", sizeLabel: "39 MB" },
+  { code: "pt", name: "Portuguese", sizeLabel: "31 MB" },
+  { code: "fr", name: "French", sizeLabel: "41 MB" },
+  { code: "de", name: "German", sizeLabel: "45 MB" },
+];
+
 const statusEl = document.getElementById("status");
 const panelRoot = document.getElementById("panelRoot");
 const shareBtn = document.getElementById("shareBtn");
@@ -158,6 +166,26 @@ let sttLanguage = "en";
 let sttCatalog = [];
 let sttInstallBusy = null;
 let sttMenuOpen = false;
+let sttPendingAdd = null;
+
+function buildFallbackSttCatalog(language = sttLanguage, installed = ["en"]) {
+  const installedSet = new Set(installed.length ? installed : ["en"]);
+  if (!installedSet.has("en")) installedSet.add("en");
+  return STT_MODEL_CATALOG.map((item) => ({
+    code: item.code,
+    name: item.name,
+    sizeLabel: item.sizeLabel,
+    bundled: Boolean(item.bundledPath),
+    installed: installedSet.has(item.code) || Boolean(item.bundledPath),
+    active: language === item.code,
+  }));
+}
+
+function ensureSttCatalog() {
+  if (!Array.isArray(sttCatalog) || sttCatalog.length === 0) {
+    sttCatalog = buildFallbackSttCatalog(sttLanguage, ["en"]);
+  }
+}
 
 function formatHotkey(config) {
   const parts = [];
@@ -251,10 +279,13 @@ async function selectLanguage(code) {
 
 function setSttLabel(code, catalog = sttCatalog) {
   sttLanguage = code || "en";
+  ensureSttCatalog();
+  const list = catalog?.length ? catalog : sttCatalog;
   const item =
-    (catalog || []).find((row) => row.code === sttLanguage) ||
-    { code: sttLanguage, name: sttLanguage };
-  if (sttBtnLabel) sttBtnLabel.textContent = item.name || sttLanguage;
+    list.find((row) => row.code === sttLanguage) ||
+    STT_MODEL_CATALOG.find((row) => row.code === sttLanguage) ||
+    { code: sttLanguage, name: "English" };
+  if (sttBtnLabel) sttBtnLabel.textContent = item.name || "English";
 }
 
 function setSttUiBusy(busy) {
@@ -279,11 +310,21 @@ function setSttUiBusy(busy) {
 }
 
 function applySttState(state = {}) {
-  if (Array.isArray(state.sttCatalog)) sttCatalog = state.sttCatalog;
+  if (Array.isArray(state.sttCatalog) && state.sttCatalog.length) {
+    sttCatalog = state.sttCatalog;
+  } else {
+    ensureSttCatalog();
+  }
   if (typeof state.sttLanguage === "string") sttLanguage = state.sttLanguage;
   if (state.sttInstallBusy === null || typeof state.sttInstallBusy === "string") {
     sttInstallBusy = state.sttInstallBusy ?? null;
   }
+  // Keep active flags in sync for local fallback lists.
+  sttCatalog = sttCatalog.map((item) => ({
+    ...item,
+    active: item.code === sttLanguage,
+    installed: item.installed || item.bundled || item.code === "en",
+  }));
   setSttLabel(sttLanguage, sttCatalog);
   setSttUiBusy(Boolean(sttInstallBusy));
   if (sttMenuOpen) renderSttList(sttSearch?.value || "");
@@ -291,6 +332,7 @@ function applySttState(state = {}) {
 
 function renderSttList(filter = "") {
   if (!sttList) return;
+  ensureSttCatalog();
   const q = filter.trim().toLowerCase();
   const filtered = (sttCatalog || []).filter((item) => {
     if (!q) return true;
@@ -377,7 +419,20 @@ function renderSttList(filter = "") {
   }
 }
 
-let sttPendingAdd = null;
+async function refreshSttCatalog() {
+  try {
+    const catalog = await chrome.runtime.sendMessage({ type: "GET_STT_CATALOG" });
+    if (catalog?.ok) {
+      applySttState(catalog);
+      return;
+    }
+  } catch {
+    // fall through to local list
+  }
+  ensureSttCatalog();
+  setSttLabel(sttLanguage, sttCatalog);
+  if (sttMenuOpen) renderSttList(sttSearch?.value || "");
+}
 
 function setSttMenuOpen(open) {
   if (sttInstallBusy && open) return;
@@ -386,7 +441,9 @@ function setSttMenuOpen(open) {
   sttBtn?.setAttribute("aria-expanded", sttMenuOpen ? "true" : "false");
   if (sttMenuOpen) {
     setLangMenuOpen(false);
+    ensureSttCatalog();
     renderSttList(sttSearch?.value || "");
+    refreshSttCatalog();
     requestAnimationFrame(() => sttSearch?.focus());
   }
 }
@@ -725,8 +782,19 @@ chrome.runtime
   .sendMessage({ type: "GET_STT_CATALOG" })
   .then((catalog) => {
     if (catalog?.ok) applySttState(catalog);
+    else {
+      ensureSttCatalog();
+      setSttLabel(sttLanguage);
+    }
   })
-  .catch(() => {});
+  .catch(() => {
+    ensureSttCatalog();
+    setSttLabel(sttLanguage);
+  });
+
+// Show English immediately even before background responds.
+ensureSttCatalog();
+setSttLabel(sttLanguage);
 
 chrome.storage.local.get(["translateTarget"], (stored) => {
   if (stored?.translateTarget) setLanguageLabel(stored.translateTarget);
