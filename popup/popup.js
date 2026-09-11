@@ -49,7 +49,11 @@ floatToggle.addEventListener("change", async () => {
 
 chooseSourceBtn.addEventListener("click", async () => {
   showError("");
-  await chrome.runtime.sendMessage({ type: "SHOW_PANEL" });
+  const result = await chrome.runtime.sendMessage({ type: "OPEN_CAPTURE_HOST" });
+  if (!result?.ok) {
+    showError(result?.error || "Could not open sound picker.");
+    return;
+  }
   window.close();
 });
 

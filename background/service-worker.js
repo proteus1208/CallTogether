@@ -9,11 +9,12 @@ const DEFAULT_SETTINGS = {
 };
 
 const OFFSCREEN_URL = "offscreen/speech.html";
+const CAPTURE_HOST_URL = "capture/host.html";
 
 let capturing = false;
 let transcript = "";
 let partial = "";
-
+let captureHostWindowId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.sync.get(null);
@@ -133,6 +134,42 @@ async function startCaptureWithStreamId(streamId) {
   return { ok: true };
 }
 
+async function openCaptureHost() {
+  if (captureHostWindowId != null) {
+    try {
+      await chrome.windows.update(captureHostWindowId, { focused: true });
+      try {
+        await chrome.runtime.sendMessage({ type: "HOST_AUTO_START" });
+      } catch {
+        // host may still be loading
+      }
+      return { ok: true };
+    } catch {
+      captureHostWindowId = null;
+    }
+  }
+
+  const win = await chrome.windows.create({
+    url: chrome.runtime.getURL(CAPTURE_HOST_URL),
+    type: "popup",
+    width: 380,
+    height: 240,
+    focused: true,
+  });
+  captureHostWindowId = win.id ?? null;
+  return { ok: true };
+}
+
+async function closeCaptureHost() {
+  if (captureHostWindowId == null) return;
+  try {
+    await chrome.windows.remove(captureHostWindowId);
+  } catch {
+    // already closed
+  }
+  captureHostWindowId = null;
+}
+
 async function stopCapture() {
   capturing = false;
   partial = "";
@@ -150,6 +187,7 @@ async function stopCapture() {
     // ignore
   }
   await closeOffscreenDocument();
+  await closeCaptureHost();
   await broadcastState();
   return { ok: true };
 }
@@ -160,6 +198,17 @@ async function clearTranscript() {
   await broadcastState();
   return { ok: true, transcript };
 }
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === captureHostWindowId) {
+    captureHostWindowId = null;
+    if (capturing) {
+      capturing = false;
+      partial = "";
+      broadcastState({ status: "Capture window closed." });
+    }
+  }
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
@@ -182,12 +231,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse(await startCaptureWithStreamId(message.streamId));
         break;
       }
+      case "OPEN_CAPTURE_HOST": {
+        sendResponse(await openCaptureHost());
+        break;
+      }
       case "PANEL_START_CAPTURE": {
-        // Panel iframe also receives this runtime message and starts capture.
-        // Just ensure the float is visible — do not rebroadcast (avoids loops).
         await chrome.storage.local.set({ floatingVisible: true });
         await sendToActiveHttpTab({ type: "SHOW_PANEL" });
-        sendResponse({ ok: true });
+        sendResponse(await openCaptureHost());
         break;
       }
       case "STOP_CAPTURE": {

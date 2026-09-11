@@ -66,7 +66,7 @@ function ensureShell() {
       class="ct-frame"
       data-frame
       title="CallTogether panel"
-      allow="display-capture *; microphone *"
+      allow="microphone *"
     ></iframe>
     <div class="ct-footer">
       Drag freely · <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> pastes transcript + Enter
@@ -74,7 +74,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.0`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.1`;
   hotkeyEl = shellEl.querySelector("[data-hotkey]");
 
   (document.body || document.documentElement).appendChild(shellEl);
