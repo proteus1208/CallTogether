@@ -228,6 +228,15 @@ window.addEventListener("message", (event) => {
 
   if (data.type === "SANDBOX_READY") {
     sandboxReady = true;
+    console.info("[CallTogether offscreen] sandbox ready");
+    return;
+  }
+  if (data.type === "STATUS") {
+    chrome.runtime.sendMessage({
+      type: "CAPTURE_STATUS",
+      text: data.text || "Loading model…",
+    });
+    console.info("[CallTogether offscreen]", data.text);
     return;
   }
   if (data.type === "RESULT" && data.text) {
@@ -239,6 +248,7 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (data.type === "ERROR") {
+    console.error("[CallTogether offscreen] sandbox ERROR", data.error);
     chrome.runtime.sendMessage({
       type: "CAPTURE_ERROR",
       error: data.error || "Transcription error",

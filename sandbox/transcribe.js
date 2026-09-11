@@ -6,37 +6,60 @@ function post(message) {
   parent.postMessage(message, "*");
 }
 
-function formatError(detail) {
-  if (!detail) return "Vosk model error.";
+function formatError(detail, fallback = "Vosk model error.") {
+  if (detail == null) return fallback;
   if (typeof detail === "string") return detail;
-  if (detail.error) return String(detail.error);
-  if (detail.message) return String(detail.message);
-  if (detail.result && detail.result !== true) return String(detail.result);
-  try {
-    return JSON.stringify(detail);
-  } catch {
-    return "Vosk model error.";
+  if (detail instanceof Error) {
+    return detail.stack || detail.message || fallback;
   }
+
+  const parts = [];
+  if (detail.error != null) parts.push(String(detail.error));
+  if (detail.message != null) parts.push(String(detail.message));
+  if (detail.result != null && detail.result !== true) {
+    parts.push(`result=${String(detail.result)}`);
+  }
+  if (detail.event && parts.length === 0) {
+    parts.push(`event=${detail.event}`);
+  }
+
+  // Include any other useful fields.
+  try {
+    const extra = { ...detail };
+    delete extra.event;
+    const keys = Object.keys(extra);
+    if (keys.length) {
+      parts.push(JSON.stringify(extra));
+    } else if (!parts.length) {
+      parts.push(JSON.stringify(detail));
+    }
+  } catch {
+    if (!parts.length) parts.push(fallback);
+  }
+
+  return parts.filter(Boolean).join(" | ") || fallback;
 }
 
-function loadModelFromUrl(modelUrl) {
+function loadModelFromUrl(modelUrl, label) {
   return new Promise((resolve, reject) => {
     if (!globalThis.Vosk?.Model) {
-      reject(new Error("Vosk library missing in sandbox."));
+      reject(
+        new Error(
+          `Vosk library missing in sandbox. typeof Vosk=${typeof globalThis.Vosk}`
+        )
+      );
       return;
     }
 
-    const model = new globalThis.Vosk.Model(modelUrl, 0);
+    post({
+      type: "STATUS",
+      text: `Starting Vosk Model (${label})…`,
+    });
+
+    const model = new globalThis.Vosk.Model(modelUrl, 3);
     let settled = false;
 
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        reject(new Error("Speech model init timed out (2 min)."));
-      }
-    }, 120000);
-
-    const done = (ok, err) => {
+    const finish = (ok, err) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -48,13 +71,51 @@ function loadModelFromUrl(modelUrl) {
       }
     };
 
+    const timer = setTimeout(() => {
+      finish(false, `Speech model init timed out for ${label}`);
+    }, 120000);
+
+    // Raw worker failures often have no message body.
+    try {
+      model.worker?.addEventListener("error", (event) => {
+        const msg = [
+          "Vosk worker error",
+          event?.message,
+          event?.filename && `file=${event.filename}`,
+          event?.lineno != null && `line=${event.lineno}`,
+          event?.error?.message,
+          event?.error?.stack,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        post({ type: "STATUS", text: msg });
+        finish(false, msg || "Vosk worker error (no message)");
+      });
+      model.worker?.addEventListener("messageerror", () => {
+        finish(false, "Vosk worker messageerror (structured clone failed)");
+      });
+    } catch (error) {
+      post({
+        type: "STATUS",
+        text: `Could not attach worker listeners: ${error?.message || error}`,
+      });
+    }
+
     model.on("load", (message) => {
-      if (message?.result) done(true);
-      else done(false, formatError(message) || "Model load returned false.");
+      post({
+        type: "STATUS",
+        text: `Vosk load event: ${formatError(message, JSON.stringify(message))}`,
+      });
+      if (message?.result) finish(true);
+      else finish(false, formatError(message, "Model load returned false."));
     });
 
     model.on("error", (message) => {
-      done(false, formatError(message));
+      const msg = formatError(message, 'Vosk error event without details ({"event":"error"})');
+      post({ type: "STATUS", text: `Vosk error event detail: ${msg}` });
+      // Also log full object for DevTools on the sandbox frame.
+      console.error("[CallTogether sandbox] Vosk error detail:", message);
+      finish(false, msg);
     });
   });
 }
@@ -63,41 +124,57 @@ async function loadModel(modelBuffer) {
   if (voskModel) return voskModel;
 
   const attempts = [];
+  const bufferBytes =
+    modelBuffer?.byteLength ||
+    (modelBuffer?.buffer && modelBuffer.buffer.byteLength) ||
+    0;
 
-  // Same-folder packaged model (best for Chrome sandbox pages).
-  attempts.push({
-    label: "sandbox/model.tar.gz",
-    run: () => loadModelFromUrl("model.tar.gz"),
+  post({
+    type: "STATUS",
+    text: `Vosk=${typeof globalThis.Vosk}, buffer=${bufferBytes} bytes`,
   });
 
-  // Named File blob fallback (vosk expects a .tar.gz name).
-  if (modelBuffer) {
+  attempts.push({
+    label: "sandbox/model.tar.gz",
+    run: () => loadModelFromUrl("model.tar.gz", "sandbox/model.tar.gz"),
+  });
+
+  if (bufferBytes > 0) {
     attempts.push({
       label: "blob:model.tar.gz",
       run: () => {
         const file = new File([modelBuffer], "model.tar.gz", {
           type: "application/gzip",
         });
-        return loadModelFromUrl(URL.createObjectURL(file));
+        const url = URL.createObjectURL(file);
+        post({
+          type: "STATUS",
+          text: `Blob URL created (${file.size} bytes): ${String(url).slice(0, 48)}…`,
+        });
+        return loadModelFromUrl(url, "blob:model.tar.gz");
       },
+    });
+  } else {
+    post({
+      type: "STATUS",
+      text: "No model buffer from parent; blob fallback unavailable.",
     });
   }
 
-  let lastError = null;
+  const errors = [];
   for (const attempt of attempts) {
     try {
-      post({ type: "STATUS", text: `Loading speech model (${attempt.label})…` });
+      post({ type: "STATUS", text: `Trying ${attempt.label}…` });
       return await attempt.run();
     } catch (error) {
-      lastError = error;
-      post({
-        type: "STATUS",
-        text: `${attempt.label} failed: ${error?.message || error}`,
-      });
+      const msg = error?.message || String(error);
+      errors.push(`${attempt.label}: ${msg}`);
+      post({ type: "STATUS", text: `Failed ${attempt.label}: ${msg}` });
+      console.error("[CallTogether sandbox] load attempt failed", attempt.label, error);
     }
   }
 
-  throw lastError || new Error("Vosk model error.");
+  throw new Error(errors.join(" || ") || "Vosk model error.");
 }
 
 function ensureRecognizer(rate) {
@@ -171,6 +248,7 @@ window.addEventListener("message", async (event) => {
       }
     }
   } catch (error) {
+    console.error("[CallTogether sandbox] LOAD_MODEL failed", error);
     post({ type: "ERROR", error: error?.message || String(error) });
   }
 });
