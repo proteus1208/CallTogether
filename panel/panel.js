@@ -11,17 +11,6 @@ const transcriptEl = document.getElementById("transcript");
 const hintEl = document.getElementById("hint");
 const dotEl = document.querySelector("[data-dot]");
 
-const platform = detectPlatform();
-
-function detectPlatform() {
-  const uaPlatform = navigator.userAgentData?.platform || navigator.platform || "";
-  const ua = `${uaPlatform} ${navigator.userAgent}`.toLowerCase();
-  if (ua.includes("win")) return "windows";
-  if (ua.includes("mac")) return "macos";
-  if (ua.includes("linux") || ua.includes("cros")) return "linux";
-  return "unknown";
-}
-
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
   statusEl.classList.toggle("error", isError);
@@ -40,20 +29,13 @@ function setCapturingUi(capturing) {
   stopBtn.disabled = !capturing;
 }
 
-function updatePlatformHint() {
-  hintEl.textContent =
-    platform === "windows"
-      ? "Start listening opens a Chrome mic permission alert. For call audio, use Stereo Mix or speakers."
-      : "Start listening opens a Chrome mic permission alert if needed.";
-}
-
 async function startCapture() {
   shareBtn.disabled = true;
-  setStatus("Checking microphone permission…");
+  setStatus("Requesting microphone via Chrome’s permission dialog…");
   const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
 
   if (result?.needsPermission) {
-    setStatus("Click “Allow microphone” in the popup — Chrome will ask you.");
+    setStatus("Use Chrome’s Allow / Block microphone dialog.");
     shareBtn.disabled = false;
     return;
   }
@@ -64,19 +46,14 @@ async function startCapture() {
   }
 }
 
-async function stopCapture() {
-  setStatus("Stopping…");
-  await chrome.runtime.sendMessage({ type: "STOP_CAPTURE" });
-  setCapturingUi(false);
-  setStatus("Stopped.");
-}
-
 shareBtn.addEventListener("click", () => {
   startCapture();
 });
 
 stopBtn.addEventListener("click", async () => {
-  await stopCapture();
+  await chrome.runtime.sendMessage({ type: "STOP_CAPTURE" });
+  setCapturingUi(false);
+  setStatus("Stopped.");
 });
 
 clearBtn.addEventListener("click", async () => {
@@ -90,20 +67,13 @@ clearBtn.addEventListener("click", async () => {
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type !== "STATE_UPDATE") return;
 
-  if (typeof message.transcript === "string") {
-    localFinal = message.transcript;
-  }
-  if (typeof message.partial === "string") {
-    localPartial = message.partial;
-  }
+  if (typeof message.transcript === "string") localFinal = message.transcript;
+  if (typeof message.partial === "string") localPartial = message.partial;
   renderTranscript();
   setCapturingUi(!!message.capturing);
 
-  if (message.error) {
-    setStatus(message.error, true);
-  } else if (message.capturing) {
-    setStatus(`Listening (${platform})…`);
-  }
+  if (message.error) setStatus(message.error, true);
+  else if (message.capturing) setStatus("Listening…");
 });
 
 chrome.runtime
@@ -117,7 +87,8 @@ chrome.runtime
   })
   .catch(() => {});
 
-updatePlatformHint();
+hintEl.textContent =
+  "Tip: use Start listening in the extension popup for Chrome’s normal mic Allow/Block dialog.";
 renderTranscript();
-setStatus("Ready — Start listening will ask for mic permission");
+setStatus("Ready");
 setCapturingUi(false);

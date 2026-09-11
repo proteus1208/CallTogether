@@ -1,4 +1,5 @@
 const statusLabel = document.getElementById("statusLabel");
+const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
 const errorEl = document.getElementById("error");
@@ -17,6 +18,7 @@ function showError(message) {
 
 function renderState({ capturing, error }) {
   statusLabel.textContent = capturing ? "Listening" : "Idle";
+  startBtn.disabled = !!capturing;
   stopBtn.disabled = !capturing;
   if (error) showError(error);
 }
@@ -30,22 +32,52 @@ async function refresh() {
   renderState(state || { capturing: false });
 }
 
+async function requestMicWithChromePrompt() {
+  // This runs in the extension popup (top-level), so Chrome shows the
+  // standard browser permission dialog: Allow / Block.
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: false,
+  });
+  stream.getTracks().forEach((track) => track.stop());
+  await chrome.storage.local.set({ micGranted: true });
+}
+
 floatToggle.addEventListener("change", async () => {
   showError("");
   const visible = floatToggle.checked;
-  // Persist preference first so content scripts on AI tabs react immediately.
   await chrome.storage.local.set({ floatingVisible: visible });
-
   const result = await chrome.runtime.sendMessage({
     type: visible ? "SHOW_PANEL" : "HIDE_PANEL",
   });
-
-  // Do not flip the preference off just because the active tab isn't an AI page.
   if (!result?.ok && visible) {
     showError(
       result?.error ||
         "Preference saved. Open/refresh your AI tab to see the floating panel."
     );
+  }
+});
+
+startBtn.addEventListener("click", async () => {
+  showError("");
+  startBtn.disabled = true;
+  try {
+    await requestMicWithChromePrompt();
+    const result = await chrome.runtime.sendMessage({ type: "START_LISTENING" });
+    if (!result?.ok && !result?.needsPermission) {
+      showError(result?.error || "Could not start listening.");
+    }
+  } catch (error) {
+    await chrome.storage.local.set({ micGranted: false });
+    const denied =
+      error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError";
+    showError(
+      denied
+        ? "You blocked the microphone in Chrome’s permission dialog."
+        : error?.message || "Microphone permission failed."
+    );
+  } finally {
+    await refresh();
   }
 });
 

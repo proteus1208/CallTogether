@@ -26,8 +26,9 @@ function createRecognition() {
       shouldRun = false;
       chrome.runtime.sendMessage({
         type: "CAPTURE_ERROR",
-        error: "Microphone permission denied for speech recognition.",
+        error: "Microphone permission denied.",
       });
+      chrome.storage.local.set({ micGranted: false });
       return;
     }
     chrome.runtime.sendMessage({
@@ -75,19 +76,19 @@ function createRecognition() {
 }
 
 async function startSpeech() {
-  // Ensure mic is usable in this extension document (shows no UI if already granted).
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((track) => track.stop());
   } catch (error) {
-    await chrome.runtime.sendMessage({
-      type: "CAPTURE_ERROR",
-      error:
-        error?.name === "NotAllowedError"
-          ? "Microphone permission is required."
-          : error?.message || "Microphone unavailable.",
-    });
-    return { ok: false };
+    const denied =
+      error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError";
+    return {
+      ok: false,
+      needsMicPrompt: denied,
+      error: denied
+        ? "Microphone permission is required."
+        : error?.message || "Microphone unavailable.",
+    };
   }
 
   if (!recognition) {
@@ -97,6 +98,7 @@ async function startSpeech() {
   shouldRun = true;
   try {
     recognition.start();
+    await chrome.storage.local.set({ micGranted: true });
     return { ok: true };
   } catch (error) {
     shouldRun = false;
