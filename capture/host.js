@@ -56,6 +56,11 @@ async function readInstalledModelBuffer(code) {
         resolve(null);
         return;
       }
+      // packVersion 2+ = tar wrapped for vosk stripFirstComponent
+      if (row.packVersion !== 2) {
+        resolve(null);
+        return;
+      }
       try {
         let buf = row.buffer;
         if (buf instanceof Blob) buf = await buf.arrayBuffer();

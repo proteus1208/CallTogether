@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.7.6",
+  "version": "1.7.8",
   "description": "Capture call audio, live transcript, hotkey paste into AI chat.",
   "permissions": [
     "storage",
@@ -37,14 +37,23 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content/content.js"],
-      "css": ["content/content.css"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
   "sandbox": {
-    "pages": ["sandbox/transcribe.html"]
+    "pages": [
+      "sandbox/transcribe.html"
+    ]
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self'",
@@ -52,8 +61,17 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["panel/*", "sandbox/*", "vendor/vosk/*", "models/*", "shared/*"],
-      "matches": ["http://*/*", "https://*/*"]
+      "resources": [
+        "panel/*",
+        "sandbox/*",
+        "vendor/vosk/*",
+        "models/*",
+        "shared/*"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
     }
   ]
 }

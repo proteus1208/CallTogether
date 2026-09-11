@@ -4,6 +4,8 @@ import { zipModelToTarGz } from "./zip-to-targz.js";
 const DB_NAME = "calltogether-stt";
 const DB_VERSION = 1;
 const STORE = "models";
+/** Must match zip→tar layout that vosk-browser stripFirstComponent expects. */
+const MODEL_PACK_VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -130,6 +132,11 @@ export async function getModelTarGzBuffer(code) {
 
   const cached = await idbGet(code);
   if (cached?.buffer instanceof ArrayBuffer) {
+    if (cached.packVersion !== MODEL_PACK_VERSION) {
+      throw new Error(
+        "Speech model needs reinstall (format update). Remove it and click + again."
+      );
+    }
     return cached.buffer;
   }
   throw new Error("Language model is not installed yet. Click Add first.");
@@ -163,7 +170,12 @@ export async function installSttModel(code, { onProgress } = {}) {
     onProgress?.({ phase: "convert", pct: 90 });
     const tarGz = await zipModelToTarGz(zipBuf);
     assertGzipTar(tarGz);
-    await idbPut({ code, buffer: tarGz, updatedAt: Date.now() });
+    await idbPut({
+      code,
+      buffer: tarGz,
+      packVersion: MODEL_PACK_VERSION,
+      updatedAt: Date.now(),
+    });
     onProgress?.({ phase: "done", pct: 100 });
   } else {
     const chunks = [];
@@ -189,7 +201,12 @@ export async function installSttModel(code, { onProgress } = {}) {
     onProgress?.({ phase: "convert", pct: 90 });
     const tarGz = await zipModelToTarGz(zipBuf.buffer);
     assertGzipTar(tarGz);
-    await idbPut({ code, buffer: tarGz, updatedAt: Date.now() });
+    await idbPut({
+      code,
+      buffer: tarGz,
+      packVersion: MODEL_PACK_VERSION,
+      updatedAt: Date.now(),
+    });
     onProgress?.({ phase: "done", pct: 100 });
   }
 

@@ -221,6 +221,13 @@ body {
   padding-top: 8px;
 }
 
+/* Live partial sits below the list — skip grey split when green line is already there. */
+.session-list.checkpoint-at-end + .session-item.partial:not(:empty),
+.session-list.checkpoint-at-end + .session-item.partial.has-split:not(:empty) {
+  border-top: none;
+  padding-top: 8px;
+}
+
 .paste-checkpoint {
   height: 1px;
   margin: 6px 0;

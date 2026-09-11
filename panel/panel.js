@@ -541,13 +541,21 @@ async function addSttModel(code) {
   }
 }
 
-function renderSessionList(container, sessions, { checkpoint = null } = {}) {
+function renderSessionList(
+  container,
+  sessions,
+  { checkpoint = null, hasPartial = false } = {}
+) {
   if (!container) return;
   container.innerHTML = "";
   const list = Array.isArray(sessions) ? sessions : [];
-  // Only show the mark when there is content after it (not at the bottom).
+  // Show after last pasted finished session when there is still content below
+  // (more finished sessions, or a live unfinished partial).
   const showMark =
-    checkpoint != null && checkpoint > 0 && checkpoint < list.length;
+    checkpoint != null &&
+    checkpoint > 0 &&
+    checkpoint <= list.length &&
+    (checkpoint < list.length || hasPartial);
 
   for (let i = 0; i < list.length; i += 1) {
     const item = document.createElement("div");
@@ -561,6 +569,11 @@ function renderSessionList(container, sessions, { checkpoint = null } = {}) {
       container.appendChild(mark);
     }
   }
+
+  container.classList.toggle(
+    "checkpoint-at-end",
+    Boolean(showMark && checkpoint === list.length && hasPartial)
+  );
 }
 
 function renderTranscript() {
@@ -573,6 +586,7 @@ function renderTranscript() {
         : [];
   renderSessionList(transcriptSessionsEl, sessions, {
     checkpoint: localPasteCheckpoint,
+    hasPartial: Boolean(localPartial.trim()),
   });
   partialTextEl.textContent = localPartial.trim();
   partialTextEl.classList.toggle(
@@ -590,6 +604,7 @@ function renderTranslation() {
   const stick = isPinnedToBottom(translateTextEl);
   renderSessionList(translateSessionsEl, localTranslatedSessions, {
     checkpoint: localPasteCheckpoint,
+    hasPartial: Boolean(localTranslatedPartial.trim()),
   });
   if (translatePartialEl) {
     translatePartialEl.textContent = localTranslatedPartial.trim();

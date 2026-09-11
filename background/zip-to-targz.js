@@ -103,34 +103,61 @@ function pad512(n) {
   return (512 - (n % 512)) % 512;
 }
 
+function writeTarHeader(name, size, typeFlag) {
+  const encoder = new TextEncoder();
+  const header = new Uint8Array(512);
+  const nameBytes = encoder.encode(name).slice(0, 100);
+  header.set(nameBytes, 0);
+  const mode = typeFlag === "5" ? "0000755\0" : "0000644\0";
+  header.set(encoder.encode(mode), 100);
+  header.set(encoder.encode("0000000\0"), 108);
+  header.set(encoder.encode("0000000\0"), 116);
+  const sizeOct = `${Number(size).toString(8).padStart(11, "0")}\0`;
+  header.set(encoder.encode(sizeOct), 124);
+  header.set(encoder.encode("00000000000\0"), 136);
+  header[156] = typeFlag.charCodeAt(0);
+  header.set(encoder.encode("ustar\0"), 257);
+  header.set(encoder.encode("00"), 263);
+
+  let checksum = 0;
+  for (let i = 0; i < 512; i += 1) checksum += i >= 148 && i < 156 ? 32 : header[i];
+  const sum = `${checksum.toString(8).padStart(6, "0")}\0 `;
+  header.set(encoder.encode(sum), 148);
+  return header;
+}
+
+/**
+ * Build a tar that matches vosk-browser's English model layout:
+ * one top-level folder (e.g. model/am/final.mdl). Browser Vosk always
+ * stripFirstComponent=true on extract — without that wrapper, am/ is
+ * stripped and recognition silently produces no text.
+ */
 function writeTar(files) {
   const parts = [];
-  const encoder = new TextEncoder();
+  const dirs = new Set(["model/"]);
 
   for (const file of files) {
     if (!file.name || file.name.endsWith("/")) continue;
-    const name = file.name.replace(/^\/+/, "");
+    const rel = file.name.replace(/^\/+/, "").replace(/^\.\//, "");
+    if (!rel) continue;
+    const full = `model/${rel}`;
+    const segments = full.split("/");
+    for (let i = 1; i < segments.length; i += 1) {
+      dirs.add(`${segments.slice(0, i).join("/")}/`);
+    }
+  }
+
+  for (const dir of [...dirs].sort()) {
+    parts.push(writeTarHeader(dir, 0, "5"));
+  }
+
+  for (const file of files) {
+    if (!file.name || file.name.endsWith("/")) continue;
+    const rel = file.name.replace(/^\/+/, "").replace(/^\.\//, "");
+    if (!rel) continue;
+    const name = `model/${rel}`;
     const data = file.data;
-    const header = new Uint8Array(512);
-    const nameBytes = encoder.encode(name).slice(0, 100);
-    header.set(nameBytes, 0);
-    const mode = encoder.encode("0000644\0");
-    header.set(mode, 100);
-    header.set(encoder.encode("0000000\0"), 108);
-    header.set(encoder.encode("0000000\0"), 116);
-    const sizeOct = `${data.byteLength.toString(8).padStart(11, "0")}\0`;
-    header.set(encoder.encode(sizeOct), 124);
-    header.set(encoder.encode("00000000000\0"), 136);
-    header[156] = "0".charCodeAt(0); // regular file
-    header.set(encoder.encode("ustar\0"), 257);
-    header.set(encoder.encode("00"), 263);
-
-    let checksum = 0;
-    for (let i = 0; i < 512; i += 1) checksum += i >= 148 && i < 156 ? 32 : header[i];
-    const sum = `${checksum.toString(8).padStart(6, "0")}\0 `;
-    header.set(encoder.encode(sum), 148);
-
-    parts.push(header, data);
+    parts.push(writeTarHeader(name, data.byteLength, "0"), data);
     const pad = pad512(data.byteLength);
     if (pad) parts.push(new Uint8Array(pad));
   }
