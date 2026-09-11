@@ -406,6 +406,9 @@ body {
 
 .stt-menu li .stt-select {
   flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   text-align: left;
   appearance: none;
   border: 0;
@@ -420,8 +423,33 @@ body {
   min-width: 0;
 }
 
+.stt-menu li .stt-select-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.stt-menu li .stt-check {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: #147a54;
+}
+
+.stt-menu li .stt-check svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.stt-menu li .stt-check-empty {
+  width: 16px;
+  height: 16px;
+}
+
 .stt-menu li .stt-select:hover,
-.stt-menu li .stt-select.is-active {
+.stt-menu li .stt-select.is-active,
+.stt-menu li .stt-select.is-picked {
   background: rgba(31, 157, 108, 0.12);
   color: #147a54;
 }
@@ -436,11 +464,14 @@ body {
   appearance: none;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 4px 8px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
   background: rgba(255, 255, 255, 0.55);
   color: var(--text);
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 650;
+  line-height: 1;
   cursor: pointer;
   box-shadow: none;
 }
@@ -453,6 +484,12 @@ body {
 .stt-menu li .stt-add:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.panel.stt-loading .actions button,
+.panel.stt-loading .lang-btn {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .stt-menu .stt-meta {

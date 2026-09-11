@@ -257,6 +257,27 @@ function setSttLabel(code, catalog = sttCatalog) {
   if (sttBtnLabel) sttBtnLabel.textContent = item.name || sttLanguage;
 }
 
+function setSttUiBusy(busy) {
+  const on = !!busy;
+  panelRoot?.classList.toggle("stt-loading", on);
+  if (on) {
+    shareBtn.disabled = true;
+    stopBtn.disabled = true;
+    translateBtn.disabled = true;
+    submitBtn.disabled = true;
+    sttBtn.disabled = true;
+    langBtn.disabled = true;
+    if (sttSearch) sttSearch.disabled = true;
+  } else {
+    sttBtn.disabled = false;
+    langBtn.disabled = false;
+    if (sttSearch) sttSearch.disabled = false;
+    translateBtn.disabled = false;
+    setCapturingUi(dotEl?.classList.contains("live"));
+    setSubmitBusy(submitBusy);
+  }
+}
+
 function applySttState(state = {}) {
   if (Array.isArray(state.sttCatalog)) sttCatalog = state.sttCatalog;
   if (typeof state.sttLanguage === "string") sttLanguage = state.sttLanguage;
@@ -264,17 +285,26 @@ function applySttState(state = {}) {
     sttInstallBusy = state.sttInstallBusy ?? null;
   }
   setSttLabel(sttLanguage, sttCatalog);
+  setSttUiBusy(Boolean(sttInstallBusy));
   if (sttMenuOpen) renderSttList(sttSearch?.value || "");
 }
 
 function renderSttList(filter = "") {
   if (!sttList) return;
   const q = filter.trim().toLowerCase();
-  const items = (sttCatalog || []).filter((item) => {
+  const filtered = (sttCatalog || []).filter((item) => {
     if (!q) return true;
     return (
       item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q)
     );
+  });
+
+  // Available (installed) languages first, then the rest.
+  const items = [...filtered].sort((a, b) => {
+    const ai = a.installed ? 0 : 1;
+    const bi = b.installed ? 0 : 1;
+    if (ai !== bi) return ai - bi;
+    return String(a.name).localeCompare(String(b.name));
   });
 
   sttList.innerHTML = "";
@@ -286,23 +316,43 @@ function renderSttList(filter = "") {
     return;
   }
 
+  const loading = Boolean(sttInstallBusy);
+
   for (const item of items) {
     const li = document.createElement("li");
+    if (item.installed) li.classList.add("is-installed");
+    if (item.code === sttLanguage) li.classList.add("is-current");
+    if (sttInstallBusy === item.code) li.classList.add("is-loading");
 
     const selectBtn = document.createElement("button");
     selectBtn.type = "button";
     selectBtn.className = "stt-select";
     selectBtn.dataset.code = item.code;
-    if (item.active || item.code === sttLanguage) {
-      selectBtn.classList.add("is-active");
-    }
-    selectBtn.disabled = !item.installed;
-    selectBtn.innerHTML = `${item.name}<span class="stt-meta">${item.sizeLabel || ""}${
-      item.installed ? " · ready" : " · not added"
-    }</span>`;
+    if (item.code === sttLanguage) selectBtn.classList.add("is-active");
+    selectBtn.disabled = loading;
+
+    const check = item.installed
+      ? `<span class="stt-check" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M9.2 16.6 5.4 12.8l1.4-1.4 2.4 2.4 6.6-6.6 1.4 1.4z"/></svg>
+        </span>`
+      : `<span class="stt-check stt-check-empty" aria-hidden="true"></span>`;
+
+    selectBtn.innerHTML = `${check}<span class="stt-select-text">${item.name}<span class="stt-meta">${
+      item.sizeLabel || ""
+    }</span></span>`;
+
     selectBtn.addEventListener("click", () => {
-      if (!item.installed) return;
-      selectSttLanguage(item.code);
+      if (loading) return;
+      if (item.installed) {
+        selectSttLanguage(item.code);
+        return;
+      }
+      // Highlight unavailable language; user then clicks +.
+      sttList.querySelectorAll(".stt-select.is-picked").forEach((el) => {
+        el.classList.remove("is-picked");
+      });
+      selectBtn.classList.add("is-picked");
+      sttPendingAdd = item.code;
     });
     li.appendChild(selectBtn);
 
@@ -310,11 +360,14 @@ function renderSttList(filter = "") {
       const addBtn = document.createElement("button");
       addBtn.type = "button";
       addBtn.className = "stt-add";
-      addBtn.textContent =
-        sttInstallBusy === item.code ? "…" : "Add";
-      addBtn.disabled = Boolean(sttInstallBusy);
+      addBtn.title = "Download language model";
+      addBtn.setAttribute("aria-label", `Add ${item.name}`);
+      addBtn.textContent = sttInstallBusy === item.code ? "…" : "+";
+      addBtn.disabled = loading;
       addBtn.addEventListener("click", (event) => {
         event.stopPropagation();
+        if (loading) return;
+        sttPendingAdd = item.code;
         addSttModel(item.code);
       });
       li.appendChild(addBtn);
@@ -324,7 +377,10 @@ function renderSttList(filter = "") {
   }
 }
 
+let sttPendingAdd = null;
+
 function setSttMenuOpen(open) {
+  if (sttInstallBusy && open) return;
   sttMenuOpen = !!open;
   if (sttMenu) sttMenu.hidden = !sttMenuOpen;
   sttBtn?.setAttribute("aria-expanded", sttMenuOpen ? "true" : "false");
@@ -336,6 +392,7 @@ function setSttMenuOpen(open) {
 }
 
 async function selectSttLanguage(code) {
+  if (sttInstallBusy) return;
   setSttLabel(code);
   setSttMenuOpen(false);
   setStatus("Switching speech language…");
@@ -355,13 +412,20 @@ async function selectSttLanguage(code) {
 }
 
 async function addSttModel(code) {
-  sttInstallBusy = code;
+  if (sttInstallBusy) return;
+  const target = code || sttPendingAdd;
+  if (!target) {
+    setStatus("Select a language first", true);
+    return;
+  }
+  sttInstallBusy = target;
+  setSttUiBusy(true);
   renderSttList(sttSearch?.value || "");
   setStatus("Downloading speech model…");
   try {
     const result = await chrome.runtime.sendMessage({
       type: "ADD_STT_MODEL",
-      code,
+      code: target,
     });
     if (!result?.ok) {
       setStatus(result?.error || "Could not add language model", true);
@@ -369,11 +433,17 @@ async function addSttModel(code) {
     }
     const catalog = await chrome.runtime.sendMessage({ type: "GET_STT_CATALOG" });
     if (catalog?.ok) applySttState(catalog);
-    setStatus("Model ready — tap the language to use it");
+    // After install, switch to that language.
+    sttInstallBusy = null;
+    setSttUiBusy(false);
+    await selectSttLanguage(target);
+    setStatus("Speech language ready");
   } catch (error) {
     setStatus(error?.message || "Model download failed", true);
   } finally {
     sttInstallBusy = null;
+    sttPendingAdd = null;
+    setSttUiBusy(false);
     renderSttList(sttSearch?.value || "");
   }
 }
@@ -460,13 +530,19 @@ function setTranslateOpen(open) {
 function setSubmitBusy(busy) {
   submitBusy = !!busy;
   submitBtn.classList.toggle("is-busy", submitBusy);
-  submitBtn.disabled = submitBusy;
+  submitBtn.disabled = submitBusy || Boolean(sttInstallBusy);
   submitBtn.setAttribute("aria-busy", submitBusy ? "true" : "false");
   submitBtn.title = submitBusy ? "Waiting…" : "Paste and send";
 }
 
 function setCapturingUi(capturing) {
   dotEl.classList.toggle("live", capturing);
+  if (sttInstallBusy) {
+    shareBtn.disabled = true;
+    stopBtn.disabled = true;
+    submitBtn.disabled = true;
+    return;
+  }
   shareBtn.disabled = capturing;
   stopBtn.disabled = !capturing;
   if (!submitBusy) submitBtn.disabled = false;
