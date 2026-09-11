@@ -1,11 +1,15 @@
 const statusEl = document.getElementById("status");
+const panelRoot = document.getElementById("panelRoot");
 const shareBtn = document.getElementById("shareBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
+const translateBtn = document.getElementById("translateBtn");
 const submitBtn = document.getElementById("submitBtn");
 const finalTextEl = document.getElementById("finalText");
 const partialTextEl = document.getElementById("partialText");
 const transcriptEl = document.getElementById("transcript");
+const translatePane = document.getElementById("translatePane");
+const translateTextEl = document.getElementById("translateText");
 const hotkeyBadge = document.getElementById("hotkeyBadge");
 const dotEl = document.querySelector("[data-dot]");
 
@@ -19,7 +23,9 @@ const DEFAULT_HOTKEY = {
 
 let localFinal = "";
 let localPartial = "";
+let localTranslated = "";
 let submitBusy = false;
+let translateOpen = false;
 
 function formatHotkey(config) {
   const parts = [];
@@ -54,6 +60,25 @@ function renderTranscript() {
   if (stick) {
     transcriptEl.scrollTop = transcriptEl.scrollHeight;
   }
+}
+
+function renderTranslation() {
+  const stick = isPinnedToBottom(translateTextEl);
+  const hasText = Boolean(localTranslated.trim());
+  translateTextEl.classList.toggle("show-placeholder", !hasText);
+  translateTextEl.textContent = localTranslated.trim();
+  if (stick) {
+    translateTextEl.scrollTop = translateTextEl.scrollHeight;
+  }
+}
+
+function setTranslateOpen(open) {
+  translateOpen = !!open;
+  panelRoot.classList.toggle("translate-open", translateOpen);
+  translatePane.hidden = !translateOpen;
+  translateBtn.classList.toggle("is-active", translateOpen);
+  translateBtn.setAttribute("aria-pressed", translateOpen ? "true" : "false");
+  translateBtn.title = translateOpen ? "Hide translation" : "Translate";
 }
 
 function setSubmitBusy(busy) {
@@ -103,6 +128,24 @@ clearBtn.addEventListener("click", async () => {
   setStatus("Cleared");
 });
 
+translateBtn.addEventListener("click", async () => {
+  const next = !translateOpen;
+  setTranslateOpen(next);
+  setStatus(next ? "Translating…" : "Ready");
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "TOGGLE_TRANSLATE",
+      open: next,
+    });
+    if (typeof result?.translateOpen === "boolean") {
+      setTranslateOpen(result.translateOpen);
+    }
+  } catch (error) {
+    setTranslateOpen(false);
+    setStatus(error?.message || "Translate failed", true);
+  }
+});
+
 submitBtn.addEventListener("click", async () => {
   if (submitBusy) return;
   setStatus("Waiting for speech…");
@@ -129,7 +172,14 @@ chrome.runtime.onMessage.addListener((message) => {
 
   if (typeof message.transcript === "string") localFinal = message.transcript;
   if (typeof message.partial === "string") localPartial = message.partial;
+  if (typeof message.translatedText === "string") {
+    localTranslated = message.translatedText;
+  }
+  if (typeof message.translateOpen === "boolean") {
+    setTranslateOpen(message.translateOpen);
+  }
   renderTranscript();
+  renderTranslation();
   setCapturingUi(!!message.capturing);
 
   if (typeof message.busy === "boolean") {
@@ -147,9 +197,14 @@ chrome.runtime
     if (!state) return;
     localFinal = state.transcript || "";
     localPartial = state.partial || "";
+    localTranslated = state.translatedText || "";
     renderTranscript();
+    renderTranslation();
     setCapturingUi(!!state.capturing);
     if (typeof state.busy === "boolean") setSubmitBusy(state.busy);
+    if (typeof state.translateOpen === "boolean") {
+      setTranslateOpen(state.translateOpen);
+    }
   })
   .catch(() => {});
 
@@ -164,6 +219,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 renderTranscript();
+renderTranslation();
 setStatus("Ready");
 setCapturingUi(false);
 setHotkeyBadge(DEFAULT_HOTKEY);
+setTranslateOpen(false);

@@ -22,7 +22,7 @@
   line-height: 1.4 !important;
   user-select: none !important;
   visibility: visible !important;
-  opacity: 1 !important; 
+  opacity: 1 !important;
   pointer-events: auto !important;
   top: 72px;
   right: 18px;
@@ -33,6 +33,11 @@
   max-width: none !important;
   max-height: none !important;
   box-sizing: border-box !important;
+  transition: width 0.18s ease !important;
+}
+
+#calltogether-float-root.ct-translate-open {
+  width: min(800px, calc(100vw - 24px)) !important;
 }
 
 #calltogether-float-root.ct-dragging {

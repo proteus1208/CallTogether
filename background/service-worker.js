@@ -6,10 +6,12 @@ const DEFAULT_SETTINGS = {
     shiftKey: false,
     key: "w",
   },
+  translateTarget: "zh-CN",
 };
 
 const OFFSCREEN_URL = "offscreen/speech.html";
 const CAPTURE_HOST_URL = "capture/host.html";
+const SCRIPT_WORD_LIMIT = 1000;
 
 let capturing = false;
 let transcript = "";
@@ -19,6 +21,13 @@ let pendingStreamId = null;
 let lastPartialAt = 0;
 let utteranceEpoch = 0;
 let actionBusy = false;
+let scriptArchive = "";
+let translatedText = "";
+let translateOpen = false;
+let translateTarget = DEFAULT_SETTINGS.translateTarget;
+let translateTimer = null;
+let translateInFlight = false;
+let translateQueued = false;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,7 +73,10 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
     const leftover = partial.trim();
     partial = "";
     transcript = transcript ? `${transcript} ${leftover}` : leftover;
+    appendScriptArchive(leftover);
+    await persistTranslationState();
     await broadcastState({ busy: actionBusy, status: "Speech session timed out" });
+    scheduleTranslation();
   }
 
   await sendCaptureCommand("CAPTURE_PAGE_RESUME");
@@ -78,6 +90,113 @@ async function setActionBusy(busy, status) {
   });
 }
 
+function trimToLastWords(text, maxWords = SCRIPT_WORD_LIMIT) {
+  const words = String(text || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length <= maxWords) return words.join(" ");
+  return words.slice(-maxWords).join(" ");
+}
+
+function appendScriptArchive(chunk) {
+  const next = [scriptArchive, chunk].filter(Boolean).join(" ").trim();
+  scriptArchive = trimToLastWords(next);
+}
+
+async function persistTranslationState() {
+  await chrome.storage.local.set({
+    scriptArchive,
+    translatedText,
+    translateOpen,
+  });
+}
+
+async function translateWithGoogle(text, target = translateTarget) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+
+  const tl = target || "zh-CN";
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const chunks = [];
+  let buf = [];
+  for (const word of words) {
+    const next = buf.length ? `${buf.join(" ")} ${word}` : word;
+    if (next.length > 450 && buf.length) {
+      chunks.push(buf.join(" "));
+      buf = [word];
+    } else {
+      buf.push(word);
+    }
+  }
+  if (buf.length) chunks.push(buf.join(" "));
+
+  const parts = [];
+  for (const chunk of chunks) {
+    const url = new URL("https://translate.googleapis.com/translate_a/single");
+    url.searchParams.set("client", "gtx");
+    url.searchParams.set("sl", "auto");
+    url.searchParams.set("tl", tl);
+    url.searchParams.set("dt", "t");
+    url.searchParams.set("q", chunk);
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Translate failed (${response.status})`);
+    }
+    const data = await response.json();
+    if (!Array.isArray(data?.[0])) continue;
+    parts.push(
+      data[0]
+        .map((row) => (Array.isArray(row) ? row[0] : ""))
+        .filter(Boolean)
+        .join("")
+    );
+  }
+  return parts.join("");
+}
+
+async function refreshTranslation({ force = false } = {}) {
+  if (!translateOpen && !force) return;
+  if (translateInFlight) {
+    translateQueued = true;
+    return;
+  }
+
+  const source = trimToLastWords(scriptArchive);
+  if (!source) {
+    translatedText = "";
+    await persistTranslationState();
+    await broadcastState();
+    return;
+  }
+
+  translateInFlight = true;
+  try {
+    translatedText = await translateWithGoogle(source, translateTarget);
+    await persistTranslationState();
+    await broadcastState({ status: translateOpen ? "Translated" : undefined });
+  } catch (error) {
+    await broadcastState({
+      error: error?.message || "Translation failed",
+    });
+  } finally {
+    translateInFlight = false;
+    if (translateQueued) {
+      translateQueued = false;
+      scheduleTranslation(120);
+    }
+  }
+}
+
+function scheduleTranslation(delayMs = 450) {
+  if (!translateOpen) return;
+  clearTimeout(translateTimer);
+  translateTimer = setTimeout(() => {
+    refreshTranslation().catch(() => {});
+  }, delayMs);
+}
+
 async function consumeTranscriptText() {
   // Block while grey-italic partial speech is still running.
   await waitForLiveSpeechSession();
@@ -86,6 +205,7 @@ async function consumeTranscriptText() {
   transcript = "";
   partial = "";
   lastPartialAt = 0;
+  // Keep scriptArchive + translatedText (not cleared on paste/send).
   await broadcastState({ busy: actionBusy });
   return text;
 }
@@ -97,6 +217,32 @@ chrome.runtime.onInstalled.addListener(async () => {
   });
 });
 
+chrome.storage.sync.get(["translateTarget"], (stored) => {
+  if (stored?.translateTarget) translateTarget = stored.translateTarget;
+});
+
+chrome.storage.local.get(
+  ["scriptArchive", "translatedText", "translateOpen"],
+  (stored) => {
+    if (typeof stored.scriptArchive === "string") {
+      scriptArchive = trimToLastWords(stored.scriptArchive);
+    }
+    if (typeof stored.translatedText === "string") {
+      translatedText = stored.translatedText;
+    }
+    if (typeof stored.translateOpen === "boolean") {
+      translateOpen = stored.translateOpen;
+    }
+  }
+);
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.translateTarget?.newValue) {
+    translateTarget = changes.translateTarget.newValue;
+    scheduleTranslation(100);
+  }
+});
+
 async function broadcastState(extra = {}) {
   const payload = {
     type: "STATE_UPDATE",
@@ -104,6 +250,10 @@ async function broadcastState(extra = {}) {
     transcript,
     partial,
     busy: actionBusy,
+    scriptArchive,
+    translatedText,
+    translateOpen,
+    translateTarget,
     ...extra,
   };
 
@@ -324,7 +474,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "GET_STATE": {
-        sendResponse({ capturing, transcript, partial, busy: actionBusy });
+        sendResponse({
+          capturing,
+          transcript,
+          partial,
+          busy: actionBusy,
+          scriptArchive,
+          translatedText,
+          translateOpen,
+          translateTarget,
+        });
         break;
       }
       case "SHOW_PANEL": {
@@ -369,6 +528,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "CLEAR_TRANSCRIPT": {
         sendResponse(await clearTranscript());
+        break;
+      }
+      case "TOGGLE_TRANSLATE": {
+        translateOpen = message.open ?? !translateOpen;
+        await persistTranslationState();
+        await broadcastState({
+          status: translateOpen ? "Translate open" : "Translate closed",
+        });
+        if (translateOpen) {
+          await refreshTranslation({ force: true });
+        }
+        sendResponse({ ok: true, translateOpen });
         break;
       }
       case "SUBMIT_TRANSCRIPT": {
@@ -423,7 +594,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           transcript = transcript ? `${transcript} ${chunk}` : chunk;
           partial = "";
           utteranceEpoch += 1;
+          appendScriptArchive(chunk);
+          await persistTranslationState();
           await broadcastState();
+          scheduleTranslation();
         }
         sendResponse({ ok: true });
         break;

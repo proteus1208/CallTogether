@@ -20,6 +20,7 @@ let dragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 let lastEditable = null;
+let translateOpen = false;
 
 function clampToViewport(left, top, width, height) {
   const maxLeft = Math.max(8, window.innerWidth - width - 8);
@@ -58,7 +59,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.12`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.0`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -163,6 +164,38 @@ function hidePanel() {
 function updateShellChrome() {
   if (!shellEl) return;
   shellEl.classList.toggle("ct-capturing", capturing);
+  setTranslateExpanded(translateOpen);
+}
+
+function setTranslateExpanded(open) {
+  if (!shellEl) return;
+  const wasOpen = shellEl.classList.contains("ct-translate-open");
+  const next = !!open;
+  translateOpen = next;
+
+  if (next && !wasOpen) {
+    const rect = shellEl.getBoundingClientRect();
+    // Grow to the right from the current left edge.
+    setShellPosition(rect.left, rect.top, "auto");
+    shellEl.classList.add("ct-translate-open");
+    const width = shellEl.offsetWidth || 800;
+    const height = shellEl.offsetHeight || 390;
+    const maxLeft = Math.max(8, window.innerWidth - width - 8);
+    if (rect.left > maxLeft) {
+      setShellPosition(maxLeft, rect.top, "auto");
+    }
+    chrome.storage.local.set({
+      panelLeft: Math.round(Math.min(rect.left, maxLeft)),
+      panelTop: Math.round(rect.top),
+    });
+    void height;
+  } else if (!next && wasOpen) {
+    const rect = shellEl.getBoundingClientRect();
+    shellEl.classList.remove("ct-translate-open");
+    setShellPosition(rect.left, rect.top, "auto");
+  } else {
+    shellEl.classList.toggle("ct-translate-open", next);
+  }
 }
 
 function matchesHotkey(event, config) {
@@ -464,6 +497,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     capturing = !!message.capturing;
     transcript = message.transcript || "";
     partial = message.partial || "";
+    if (typeof message.translateOpen === "boolean") {
+      translateOpen = message.translateOpen;
+    }
     isFloatingEnabled().then((enabled) => {
       if (!enabled) {
         hidePanel();

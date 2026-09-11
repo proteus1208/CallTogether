@@ -85,8 +85,20 @@ body {
   color: var(--danger);
 }
 
-.transcript {
+.body-row {
   flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.panel.translate-open .body-row {
+  grid-template-columns: 1fr 1fr;
+}
+
+.transcript,
+.translate-text {
   min-height: 0;
   overflow: auto;
   padding: 12px;
@@ -103,9 +115,43 @@ body {
   color: var(--text);
 }
 
+.transcript {
+  height: 100%;
+}
+
 .transcript:empty::before,
 .transcript.show-placeholder::before {
   content: "Transcript…";
+  color: var(--muted);
+}
+
+.translate-pane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.translate-pane[hidden] {
+  display: none !important;
+}
+
+.translate-label {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding-left: 2px;
+}
+
+.translate-text {
+  flex: 1;
+}
+
+.translate-text:empty::before,
+.translate-text.show-placeholder::before {
+  content: "Translation…";
   color: var(--muted);
 }
 
@@ -116,7 +162,7 @@ body {
 
 .actions {
   display: grid;
-  grid-template-columns: 1fr 36px 36px 36px;
+  grid-template-columns: 1fr 36px 36px 36px 36px;
   gap: 6px;
   align-items: center;
 }
@@ -165,6 +211,12 @@ button.icon-btn.is-busy .icon-spinner {
 button.icon-btn.is-busy:disabled {
   opacity: 1;
   cursor: wait;
+}
+
+button.icon-btn.is-active {
+  background: rgba(31, 157, 108, 0.18);
+  color: var(--accent);
+  border: 1px solid rgba(31, 157, 108, 0.35);
 }
 
 @keyframes ct-spin {

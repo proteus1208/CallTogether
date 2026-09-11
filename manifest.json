@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CallTogether",
-  "version": "1.5.12",
+  "version": "1.6.0",
   "description": "Capture call audio, live transcript, hotkey paste into AI chat.",
   "permissions": [
     "storage",
@@ -11,6 +11,9 @@
     "activeTab",
     "offscreen",
     "desktopCapture"
+  ],
+  "host_permissions": [
+    "https://translate.googleapis.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
