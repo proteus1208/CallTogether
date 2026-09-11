@@ -10,6 +10,9 @@
   --glass: rgba(255, 255, 255, 0.14);
   --radius: 16px;
   --pane-ease: 0.22s ease;
+  /* Matches closed panel content width (400 shell - 24 shell pad - 4 panel pad). */
+  --transcript-w: 372px;
+  --translate-w: 360px;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
@@ -102,11 +105,19 @@ body {
   gap: 4px;
 }
 
-/* Transcript stays flexible and fills leftover space; its closed width is preserved
-   because the shell grows by a fixed translate pane width (not 50/50). */
+/* Fixed left column: fills parent when closed; stays the same px when open. */
 .transcript-col {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+}
+
+.panel.translate-open .transcript-col {
+  flex: 0 0 var(--transcript-w);
+  width: var(--transcript-w);
+  min-width: var(--transcript-w);
+  max-width: var(--transcript-w);
 }
 
 .col-label {
@@ -185,7 +196,6 @@ body {
 }
 
 .translate-pane {
-  --translate-w: 360px;
   flex: 0 0 0;
   width: 0;
   max-width: 0;
