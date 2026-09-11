@@ -23,13 +23,64 @@ let utteranceEpoch = 0;
 let actionBusy = false;
 let scriptSessions = [];
 let translatedSessions = [];
+let translatedPartial = "";
 let translateOpen = false;
 let translateTarget = DEFAULT_SETTINGS.translateTarget;
 let translateInFlight = false;
 let translateQueued = false;
+let liveTranslateTimer = null;
+let liveTranslateBusy = false;
+const LIVE_TRANSLATE_GAP_MS = 5000;
+
+/** Hold Vosk finals briefly so a short pause does not split one speech session. */
+let pendingSessionParts = [];
+let sessionCloseTimer = null;
+const SESSION_CLOSE_DELAY_MS = 1000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clearSessionCloseTimer() {
+  if (sessionCloseTimer) {
+    clearTimeout(sessionCloseTimer);
+    sessionCloseTimer = null;
+  }
+}
+
+function heldSessionText() {
+  return pendingSessionParts.join(" ").trim();
+}
+
+function composeLivePartial(live = "") {
+  const held = heldSessionText();
+  const next = String(live || "").trim();
+  return [held, next].filter(Boolean).join(" ");
+}
+
+function scheduleSessionClose() {
+  clearSessionCloseTimer();
+  sessionCloseTimer = setTimeout(() => {
+    sessionCloseTimer = null;
+    finalizePendingSession().catch(() => {});
+  }, SESSION_CLOSE_DELAY_MS);
+}
+
+async function finalizePendingSession() {
+  clearSessionCloseTimer();
+  const text = heldSessionText();
+  pendingSessionParts = [];
+  if (!text) return;
+
+  transcript = transcript ? `${transcript} ${text}` : text;
+  stopLiveTranslate();
+  partial = "";
+  utteranceEpoch += 1;
+  appendScriptSession(text);
+  await broadcastState();
+  if (translateOpen) {
+    translateSpeechSession(text).catch(() => {});
+  }
 }
 
 async function sendCaptureCommand(type) {
@@ -45,12 +96,18 @@ async function sendCaptureCommand(type) {
  * Wait until that session finalizes (partial cleared) before paste/send.
  */
 async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
-  // No live partial → current session already complete.
-  if (!partial.trim()) return;
+  // No live partial / held session → already complete.
+  if (!partial.trim() && !pendingSessionParts.length) return;
 
   await sendCaptureCommand("CAPTURE_PAGE_PAUSE");
   await sleep(80);
   await sendCaptureCommand("CAPTURE_PAGE_FLUSH");
+  await sleep(200);
+
+  // Paste/send should not wait the 1s grace — close any held session now.
+  if (pendingSessionParts.length) {
+    await finalizePendingSession();
+  }
 
   const start = Date.now();
   let lastFlushAt = Date.now();
@@ -66,9 +123,14 @@ async function waitForLiveSpeechSession({ timeoutMs = 30000 } = {}) {
 
   // Allow a late RESULT to land after partial clears.
   await sleep(200);
+  if (pendingSessionParts.length) {
+    await finalizePendingSession();
+  }
 
   // Timeout fallback: promote leftover grey italic into final transcript.
   if (partial.trim()) {
+    clearSessionCloseTimer();
+    pendingSessionParts = [];
     const leftover = partial.trim();
     partial = "";
     transcript = transcript ? `${transcript} ${leftover}` : leftover;
@@ -128,6 +190,60 @@ function joinedScriptArchive() {
 
 function joinedTranslatedText() {
   return translatedSessions.join(" ").trim();
+}
+
+function clearLiveTranslateTimer() {
+  if (liveTranslateTimer) {
+    clearTimeout(liveTranslateTimer);
+    liveTranslateTimer = null;
+  }
+}
+
+function stopLiveTranslate() {
+  clearLiveTranslateTimer();
+  translatedPartial = "";
+}
+
+/** Schedule/continue live partial translate; timer starts after each request finishes. */
+function armLiveTranslate() {
+  if (!translateOpen || !partial.trim()) return;
+  if (liveTranslateBusy || liveTranslateTimer) return;
+  liveTranslateTimer = setTimeout(() => {
+    liveTranslateTimer = null;
+    runLivePartialTranslate().catch(() => {});
+  }, LIVE_TRANSLATE_GAP_MS);
+}
+
+async function runLivePartialTranslate() {
+  if (!translateOpen) return;
+  const source = partial.trim();
+  if (!source) {
+    translatedPartial = "";
+    await broadcastState();
+    return;
+  }
+  if (liveTranslateBusy) return;
+
+  liveTranslateBusy = true;
+  try {
+    const piece = (await translateWithGoogle(source, translateTarget)).trim();
+    if (translateOpen && partial.trim()) {
+      translatedPartial = piece || source;
+      await broadcastState();
+    }
+  } catch {
+    // Ignore transient live-translate failures.
+  } finally {
+    liveTranslateBusy = false;
+    // Next tick only after this request finished.
+    if (translateOpen && partial.trim()) {
+      clearLiveTranslateTimer();
+      liveTranslateTimer = setTimeout(() => {
+        liveTranslateTimer = null;
+        runLivePartialTranslate().catch(() => {});
+      }, LIVE_TRANSLATE_GAP_MS);
+    }
+  }
 }
 
 async function translateWithGoogle(text, target = translateTarget) {
@@ -283,6 +399,7 @@ async function broadcastState(extra = {}) {
     busy: actionBusy,
     scriptSessions,
     translatedSessions,
+    translatedPartial,
     scriptArchive: joinedScriptArchive(),
     translatedText: joinedTranslatedText(),
     translateOpen,
@@ -486,8 +603,11 @@ async function stopCapture() {
 }
 
 async function clearTranscript() {
+  clearSessionCloseTimer();
+  pendingSessionParts = [];
   transcript = "";
   partial = "";
+  stopLiveTranslate();
   await broadcastState();
   return { ok: true, transcript };
 }
@@ -497,8 +617,12 @@ chrome.windows.onRemoved.addListener((windowId) => {
     captureHostWindowId = null;
     if (capturing) {
       capturing = false;
-      partial = "";
-      broadcastState({ status: "Capture window closed." });
+      if (pendingSessionParts.length) {
+        finalizePendingSession().catch(() => {});
+      } else {
+        partial = "";
+        broadcastState({ status: "Capture window closed." });
+      }
     }
   }
 });
@@ -514,6 +638,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           busy: actionBusy,
           scriptSessions,
           translatedSessions,
+          translatedPartial,
           scriptArchive: joinedScriptArchive(),
           translatedText: joinedTranslatedText(),
           translateOpen,
@@ -567,12 +692,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "TOGGLE_TRANSLATE": {
         translateOpen = message.open ?? !translateOpen;
+        if (!translateOpen) stopLiveTranslate();
         await broadcastState({
           status: translateOpen ? "Translate open" : "Translate closed",
         });
         // On first open with existing speech, fill translation once.
         if (translateOpen && scriptSessions.length && !translatedSessions.length) {
           await retranslateAll();
+        }
+        if (translateOpen && partial.trim()) {
+          armLiveTranslate();
         }
         sendResponse({ ok: true, translateOpen });
         break;
@@ -585,9 +714,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         translateTarget = next;
         await chrome.storage.local.set({ translateTarget });
+        stopLiveTranslate();
         await broadcastState({ status: "Updating translation…" });
         if (translateOpen) {
           await retranslateAll();
+          if (partial.trim()) armLiveTranslate();
         }
         sendResponse({ ok: true, translateTarget });
         break;
@@ -641,37 +772,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "TRANSCRIPT_CHUNK": {
         const chunk = (message.text || "").trim();
         if (chunk) {
-          transcript = transcript ? `${transcript} ${chunk}` : chunk;
-          partial = "";
+          // Hold finals for 1s; merge into one session if speech resumes.
+          pendingSessionParts.push(chunk);
           utteranceEpoch += 1;
-          appendScriptSession(chunk);
-          await broadcastState();
-          // Translate only this speech session (append), never re-run the whole log.
-          if (translateOpen) {
-            translateSpeechSession(chunk).catch(() => {});
+          lastPartialAt = Date.now();
+          partial = heldSessionText();
+          if (actionBusy) {
+            await finalizePendingSession();
+          } else {
+            scheduleSessionClose();
+            await broadcastState();
+            if (translateOpen) armLiveTranslate();
           }
         }
         sendResponse({ ok: true });
         break;
       }
       case "TRANSCRIPT_PARTIAL": {
-        partial = (message.text || "").trim();
+        const text = (message.text || "").trim();
         lastPartialAt = Date.now();
-        if (partial) utteranceEpoch += 1;
-        await broadcastState();
+        if (pendingSessionParts.length) {
+          if (text) {
+            // Speech continued within the grace window — keep session open.
+            clearSessionCloseTimer();
+            partial = composeLivePartial(text);
+            utteranceEpoch += 1;
+            await broadcastState();
+            if (translateOpen) armLiveTranslate();
+          } else {
+            // Vosk cleared partial after a final — keep held text as live session.
+            partial = heldSessionText();
+            await broadcastState();
+          }
+        } else {
+          partial = text;
+          if (partial) utteranceEpoch += 1;
+          if (!partial) stopLiveTranslate();
+          await broadcastState();
+          if (partial) armLiveTranslate();
+        }
         sendResponse({ ok: true });
         break;
       }
       case "CAPTURE_ERROR": {
         capturing = false;
+        if (pendingSessionParts.length) {
+          await finalizePendingSession();
+        }
         partial = "";
+        stopLiveTranslate();
         await broadcastState({ error: message.error || "Capture failed." });
         sendResponse({ ok: true });
         break;
       }
       case "CAPTURE_ENDED": {
         capturing = false;
+        if (pendingSessionParts.length) {
+          await finalizePendingSession();
+        }
         partial = "";
+        stopLiveTranslate();
         await broadcastState();
         sendResponse({ ok: true });
         break;

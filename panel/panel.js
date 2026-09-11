@@ -11,6 +11,7 @@ const partialTextEl = document.getElementById("partialText");
 const translatePane = document.getElementById("translatePane");
 const translateTextEl = document.getElementById("translateText");
 const translateSessionsEl = document.getElementById("translateSessions");
+const translatePartialEl = document.getElementById("translatePartial");
 const hotkeyBadge = document.getElementById("hotkeyBadge");
 const langBtn = document.getElementById("langBtn");
 const langBtnLabel = document.getElementById("langBtnLabel");
@@ -143,6 +144,7 @@ let localFinal = "";
 let localPartial = "";
 let localSessions = [];
 let localTranslatedSessions = [];
+let localTranslatedPartial = "";
 let submitBusy = false;
 let translateOpen = false;
 let translateTarget = "zh-CN";
@@ -268,7 +270,12 @@ function renderTranscript() {
 function renderTranslation() {
   const stick = isPinnedToBottom(translateTextEl);
   renderSessionList(translateSessionsEl, localTranslatedSessions);
-  const hasText = localTranslatedSessions.length > 0;
+  if (translatePartialEl) {
+    translatePartialEl.textContent = localTranslatedPartial.trim();
+  }
+  const hasText = Boolean(
+    localTranslatedSessions.length || localTranslatedPartial.trim()
+  );
   translateTextEl.classList.toggle("show-placeholder", !hasText);
   if (stick) {
     translateTextEl.scrollTop = translateTextEl.scrollHeight;
@@ -410,6 +417,9 @@ chrome.runtime.onMessage.addListener((message) => {
     // fallback for older payloads
     localTranslatedSessions = [message.translatedText];
   }
+  if (typeof message.translatedPartial === "string") {
+    localTranslatedPartial = message.translatedPartial;
+  }
   if (typeof message.translateTarget === "string") {
     setLanguageLabel(message.translateTarget);
   }
@@ -441,6 +451,7 @@ chrome.runtime
     localTranslatedSessions = Array.isArray(state.translatedSessions)
       ? state.translatedSessions.filter(Boolean)
       : [];
+    localTranslatedPartial = state.translatedPartial || "";
     if (state.translateTarget) setLanguageLabel(state.translateTarget);
     renderTranscript();
     renderTranslation();

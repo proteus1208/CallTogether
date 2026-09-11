@@ -59,7 +59,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.5`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.7`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
