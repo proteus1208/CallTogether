@@ -182,8 +182,10 @@ function updateShellChrome() {
 }
 
 function matchesHotkey(event, config) {
-  if (!config?.key) return false;
+  if (!config?.key || typeof config.key !== "string") return false;
   if (event.repeat) return false;
+  if (typeof event.key !== "string") return false;
+
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   const expected = config.key.length === 1 ? config.key.toLowerCase() : config.key;
   return (
