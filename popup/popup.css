@@ -1,17 +1,15 @@
 :root {
   color-scheme: light;
-  --bg: #f4f7fb;
   --text: #1a2330;
   --muted: #5b6b7c;
   --accent: #1f9d6c;
-  --accent-soft: rgba(31, 157, 108, 0.12);
   --accent-text: #ffffff;
   --danger: #d64545;
-  --line: rgba(26, 35, 48, 0.1);
-  --glass: rgba(255, 255, 255, 0.72);
-  --glass-strong: rgba(255, 255, 255, 0.88);
-  --shadow: 0 12px 32px rgba(26, 35, 48, 0.08);
-  --radius: 16px;
+  --line: rgba(255, 255, 255, 0.55);
+  --glass: rgba(255, 255, 255, 0.38);
+  --glass-strong: rgba(255, 255, 255, 0.55);
+  --shadow: 0 10px 28px rgba(26, 35, 48, 0.08);
+  --radius: 18px;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
@@ -19,14 +17,21 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
+  background: transparent;
+}
+
+body {
   width: 320px;
-  background:
-    radial-gradient(240px 140px at 100% 0%, rgba(31, 157, 108, 0.14), transparent 55%),
-    radial-gradient(200px 120px at 0% 100%, rgba(90, 140, 255, 0.1), transparent 50%),
-    linear-gradient(165deg, #f8fbff, var(--bg));
   color: var(--text);
+  background:
+    radial-gradient(220px 140px at 100% 0%, rgba(31, 157, 108, 0.16), transparent 60%),
+    radial-gradient(180px 120px at 0% 100%, rgba(90, 140, 255, 0.12), transparent 55%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.45), rgba(244, 247, 251, 0.35));
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
 }
 
 main {
@@ -62,13 +67,12 @@ header h1 {
 }
 
 .state,
-.toggle-row,
-.steps {
+.toggle-row {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
 }
 
@@ -119,7 +123,7 @@ header h1 {
   margin: 0;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: rgba(26, 35, 48, 0.12);
+  background: rgba(26, 35, 48, 0.14);
   position: relative;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -152,34 +156,9 @@ header h1 {
   margin-bottom: 4px;
 }
 
-.capture-block h2 {
-  margin: 0 0 2px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 button.full {
   width: 100%;
   margin-top: 8px;
-}
-
-.steps {
-  margin: 12px 0 0;
-  padding: 10px 10px 10px 28px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.45;
-}
-
-.steps li {
-  margin: 0 0 4px;
-}
-
-.steps li:last-child {
-  margin-bottom: 0;
 }
 
 .hint {
@@ -214,20 +193,6 @@ button .btn-sub {
   font-size: 0.72rem;
   font-weight: 500;
   opacity: 0.85;
-}
-
-button.secondary {
-  background: var(--glass-strong);
-  color: var(--text);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-button.secondary .btn-sub {
-  color: var(--muted);
-  opacity: 1;
 }
 
 button.ghost {

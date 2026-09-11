@@ -32,6 +32,21 @@ async function refresh() {
   renderState(state || { capturing: false });
 }
 
+function chooseSoundSource() {
+  return new Promise((resolve) => {
+    try {
+      // Native Chrome picker — no extra extension window.
+      chrome.desktopCapture.chooseDesktopMedia(
+        ["screen", "window", "tab", "audio"],
+        (streamId) => resolve(streamId || null)
+      );
+    } catch (error) {
+      console.error(error);
+      resolve(null);
+    }
+  });
+}
+
 floatToggle.addEventListener("change", async () => {
   showError("");
   const visible = floatToggle.checked;
@@ -49,11 +64,23 @@ floatToggle.addEventListener("change", async () => {
 
 chooseSourceBtn.addEventListener("click", async () => {
   showError("");
+  chooseSourceBtn.disabled = true;
+  statusLabel.textContent = "Choose what to share…";
+
+  const streamId = await chooseSoundSource();
+  if (!streamId) {
+    showError("Cancelled. Pick a source and enable audio.");
+    await refresh();
+    return;
+  }
+
   const result = await chrome.runtime.sendMessage({
-    type: "OPEN_SCREEN_CAPTURE_SESSION",
+    type: "START_TAB_CAPTURE",
+    streamId,
   });
   if (!result?.ok) {
-    showError(result?.error || "Could not open sound source picker.");
+    showError(result?.error || "Could not capture audio.");
+    await refresh();
     return;
   }
   window.close();

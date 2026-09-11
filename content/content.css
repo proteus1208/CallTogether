@@ -8,15 +8,15 @@
   gap: 8px !important;
   padding: 12px !important;
   margin: 0 !important;
-  border-radius: 20px !important;
-  border: 1px solid rgba(26, 35, 48, 0.1) !important;
-  background: rgba(255, 255, 255, 0.72) !important;
+  border-radius: 22px !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  background: rgba(255, 255, 255, 0.32) !important;
   color: #1a2330 !important;
   box-shadow:
     0 18px 48px rgba(26, 35, 48, 0.12),
-    0 2px 8px rgba(26, 35, 48, 0.06) !important;
-  backdrop-filter: blur(22px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(1.2) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(28px) saturate(1.35) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.35) !important;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif !important;
   font-size: 13px !important;
   line-height: 1.4 !important;
@@ -24,7 +24,6 @@
   visibility: visible !important;
   opacity: 1 !important;
   pointer-events: auto !important;
-  /* Do NOT lock top/left/right with !important — that breaks free dragging. */
   top: 72px;
   right: 18px;
   left: auto;
@@ -46,7 +45,7 @@
 }
 
 #calltogether-float-root.ct-dragging {
-  opacity: 0.96 !important;
+  opacity: 0.92 !important;
   cursor: grabbing !important;
 }
 
@@ -108,16 +107,16 @@
 
 #calltogether-float-root .ct-actions button {
   appearance: none !important;
-  border: 1px solid rgba(26, 35, 48, 0.1) !important;
-  background: rgba(255, 255, 255, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  background: rgba(255, 255, 255, 0.4) !important;
   color: #1a2330 !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   padding: 4px 8px !important;
   cursor: pointer !important;
   font-size: 12px !important;
   line-height: 1 !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
 }
 
 #calltogether-float-root .ct-frame {
@@ -125,7 +124,7 @@
   width: 100% !important;
   min-height: 0 !important;
   border: 0 !important;
-  border-radius: 14px !important;
+  border-radius: 16px !important;
   background: transparent !important;
   display: block !important;
 }
@@ -142,9 +141,10 @@
   display: inline-block !important;
   padding: 1px 5px !important;
   border-radius: 8px !important;
-  border: 1px solid rgba(26, 35, 48, 0.12) !important;
-  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  background: rgba(255, 255, 255, 0.45) !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
   font-size: 11px !important;
   color: #1a2330 !important;
+  backdrop-filter: blur(8px) !important;
 }

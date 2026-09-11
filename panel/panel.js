@@ -29,18 +29,42 @@ function setCapturingUi(capturing) {
   stopBtn.disabled = !capturing;
 }
 
-shareBtn.addEventListener("click", async () => {
-  setStatus("Opening sound source picker…");
-  try {
-    const result = await chrome.runtime.sendMessage({
-      type: "OPEN_SCREEN_CAPTURE_SESSION",
-    });
-    if (!result?.ok) {
-      setStatus(result?.error || "Could not open sound source picker.", true);
+function chooseSoundSource() {
+  return new Promise((resolve) => {
+    try {
+      chrome.desktopCapture.chooseDesktopMedia(
+        ["screen", "window", "tab", "audio"],
+        (streamId) => resolve(streamId || null)
+      );
+    } catch (error) {
+      console.error(error);
+      resolve(null);
     }
-  } catch {
-    setStatus("Click the CallTogether icon → Choose sound source.", true);
+  });
+}
+
+shareBtn.addEventListener("click", async () => {
+  setStatus("Choose what to share…");
+  shareBtn.disabled = true;
+
+  const streamId = await chooseSoundSource();
+  if (!streamId) {
+    setStatus("Cancelled. Pick a source and enable audio.", true);
+    setCapturingUi(false);
+    return;
   }
+
+  const result = await chrome.runtime.sendMessage({
+    type: "START_TAB_CAPTURE",
+    streamId,
+  });
+  if (!result?.ok) {
+    setStatus(result?.error || "Could not capture audio.", true);
+    setCapturingUi(false);
+    return;
+  }
+  setCapturingUi(true);
+  setStatus("Capturing audio…");
 });
 
 stopBtn.addEventListener("click", async () => {
@@ -67,7 +91,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
   if (message.error) setStatus(message.error, true);
   else if (message.status) setStatus(message.status);
-  else if (message.capturing) setStatus("Listening to shared tab audio…");
+  else if (message.capturing) setStatus("Listening…");
 });
 
 chrome.runtime
@@ -81,8 +105,7 @@ chrome.runtime
   })
   .catch(() => {});
 
-hintEl.textContent =
-  "One share dialog · enable audio · hotkey pastes into AI chat";
+hintEl.textContent = "Enable audio in Chrome’s dialog · hotkey pastes into AI chat";
 renderTranscript();
 setStatus("Ready — choose a sound source");
 setCapturingUi(false);
