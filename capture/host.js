@@ -144,6 +144,37 @@ async function pickSoundStreamWithGesture() {
   });
 }
 
+async function hideHostWindow() {
+  try {
+    const win = await chrome.windows.getCurrent();
+    if (!win?.id) {
+      chrome.runtime.sendMessage({ type: "HIDE_CAPTURE_HOST" }).catch(() => {});
+      return;
+    }
+    // Leave fullscreen first — direct minimize often fails there.
+    await chrome.windows.update(win.id, {
+      state: "normal",
+      focused: false,
+      width: 320,
+      height: 200,
+    });
+    try {
+      await chrome.windows.update(win.id, { state: "minimized", focused: false });
+    } catch {
+      await chrome.windows.update(win.id, {
+        state: "normal",
+        focused: false,
+        width: 1,
+        height: 1,
+        left: -10000,
+        top: -10000,
+      });
+    }
+  } catch {
+    chrome.runtime.sendMessage({ type: "HIDE_CAPTURE_HOST" }).catch(() => {});
+  }
+}
+
 async function startAudioPipeline(stream) {
   const audioTracks = stream.getAudioTracks();
   if (!audioTracks.length) {
@@ -156,6 +187,13 @@ async function startAudioPipeline(stream) {
   mediaStream = stream;
   mediaStream.getVideoTracks().forEach((track) => track.stop());
   audioTracks[0].addEventListener("ended", () => stopCapture(true));
+
+  shareBtn.disabled = true;
+  stopBtn.disabled = false;
+  setStatus("Capturing…");
+  chrome.runtime.sendMessage({ type: "CAPTURE_STARTED" }).catch(() => {});
+  // Collapse as soon as share is chosen (before model load).
+  await hideHostWindow();
 
   setStatus("Loading speech model…");
   if (!modelReady) await prepareModel();
@@ -186,12 +224,7 @@ async function startAudioPipeline(stream) {
   processorNode.connect(silentGain);
   silentGain.connect(audioContext.destination);
 
-  shareBtn.disabled = true;
-  stopBtn.disabled = false;
   setStatus("Capturing…");
-  chrome.runtime.sendMessage({ type: "CAPTURE_STARTED" }).catch(() => {});
-  // Hide UI; keep processing in the minimized window until Stop.
-  chrome.runtime.sendMessage({ type: "HIDE_CAPTURE_HOST" }).catch(() => {});
 }
 
 async function startCapture({ streamId = null } = {}) {

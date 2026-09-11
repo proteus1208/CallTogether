@@ -172,11 +172,40 @@ async function openCaptureHost(streamId = null) {
   return { ok: true };
 }
 
-async function hideCaptureHost() {
-  if (captureHostWindowId == null) return { ok: true };
+async function hideCaptureHost(windowId = null) {
+  const id = windowId ?? captureHostWindowId;
+  if (id == null) return { ok: false, error: "No capture window." };
+  captureHostWindowId = id;
+
+  // Fullscreen → minimized often fails (esp. Linux). Leave fullscreen first,
+  // then minimize; fall back to a 1×1 off-screen window so capture keeps running.
   try {
-    // Keep JS/audio alive in the background by minimizing (no real tray API).
-    await chrome.windows.update(captureHostWindowId, { state: "minimized" });
+    await chrome.windows.update(id, {
+      state: "normal",
+      focused: false,
+      width: 320,
+      height: 200,
+    });
+  } catch {
+    // ignore
+  }
+
+  try {
+    await chrome.windows.update(id, { state: "minimized", focused: false });
+    return { ok: true };
+  } catch {
+    // fall through
+  }
+
+  try {
+    await chrome.windows.update(id, {
+      state: "normal",
+      focused: false,
+      width: 1,
+      height: 1,
+      left: -10000,
+      top: -10000,
+    });
   } catch {
     // ignore
   }
@@ -233,7 +262,7 @@ chrome.windows.onRemoved.addListener((windowId) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "GET_STATE": {
@@ -259,7 +288,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         break;
       }
       case "HIDE_CAPTURE_HOST": {
-        sendResponse(await hideCaptureHost());
+        sendResponse(
+          await hideCaptureHost(sender.tab?.windowId ?? captureHostWindowId)
+        );
         break;
       }
       case "TAKE_PENDING_STREAM_ID": {
