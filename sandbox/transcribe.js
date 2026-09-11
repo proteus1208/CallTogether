@@ -67,7 +67,7 @@ function loadModelFromUrl(modelUrl, label) {
     if (!globalThis.Vosk?.Model) {
       reject(
         new Error(
-          `Vosk library missing in sandbox. typeof Vosk=${typeof globalThis.Vosk}`
+          `Vosk library missing in sandbox. typeof Vosk=${typeof globalThis.Vosk}. Reload extension and confirm sandbox/vosk.js is present.`
         )
       );
       return;

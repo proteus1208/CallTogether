@@ -5,7 +5,22 @@
     <title>CallTogether Transcribe</title>
   </head>
   <body>
-    <script src="../vendor/vosk/vosk.js"></script>
+    <!-- vosk.js must live inside sandbox/ — CSP 'self' blocks ../vendor in opaque sandbox origins -->
+    <script src="vosk.js"></script>
+    <script>
+      (function ensureVoskGlobal() {
+        if (typeof globalThis.Vosk === "undefined" || !globalThis.Vosk.Model) {
+          parent.postMessage(
+            {
+              type: "ERROR",
+              error:
+                "Vosk failed to load in sandbox (script missing or CSP blocked). Expected sandbox/vosk.js.",
+            },
+            "*"
+          );
+        }
+      })();
+    </script>
     <script src="transcribe.js"></script>
   </body>
 </html>
