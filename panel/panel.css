@@ -164,6 +164,19 @@ body {
   padding-top: 8px;
 }
 
+.session-list:not(:empty) + .session-item.partial:not(:empty),
+.session-item.partial.has-split:not(:empty) {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.paste-checkpoint {
+  height: 0;
+  margin: 2px 0 10px;
+  border-top: 2px solid #e23b3b;
+  flex: 0 0 auto;
+}
+
 .session-item.partial {
   color: var(--muted);
   font-style: italic;

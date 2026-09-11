@@ -2,7 +2,6 @@ const statusEl = document.getElementById("status");
 const panelRoot = document.getElementById("panelRoot");
 const shareBtn = document.getElementById("shareBtn");
 const stopBtn = document.getElementById("stopBtn");
-const clearBtn = document.getElementById("clearBtn");
 const translateBtn = document.getElementById("translateBtn");
 const submitBtn = document.getElementById("submitBtn");
 const transcriptEl = document.getElementById("transcript");
@@ -145,6 +144,7 @@ let localPartial = "";
 let localSessions = [];
 let localTranslatedSessions = [];
 let localTranslatedPartial = "";
+let localPasteCheckpoint = 0;
 let submitBusy = false;
 let translateOpen = false;
 let translateTarget = "zh-CN";
@@ -239,14 +239,29 @@ async function selectLanguage(code) {
   }
 }
 
-function renderSessionList(container, sessions) {
+function renderSessionList(container, sessions, { checkpoint = null } = {}) {
   if (!container) return;
   container.innerHTML = "";
-  for (const text of sessions) {
+  const list = Array.isArray(sessions) ? sessions : [];
+  for (let i = 0; i < list.length; i += 1) {
     const item = document.createElement("div");
     item.className = "session-item";
-    item.textContent = text;
+    item.textContent = list[i];
     container.appendChild(item);
+    if (checkpoint != null && checkpoint > 0 && i === checkpoint - 1) {
+      const mark = document.createElement("div");
+      mark.className = "paste-checkpoint";
+      mark.title = "Last paste point";
+      container.appendChild(mark);
+    }
+  }
+  if (
+    checkpoint != null &&
+    checkpoint > 0 &&
+    checkpoint === list.length &&
+    list.length > 0
+  ) {
+    // Checkpoint already inserted after last item via i === checkpoint - 1.
   }
 }
 
@@ -258,8 +273,14 @@ function renderTranscript() {
       : localFinal.trim()
         ? [localFinal.trim()]
         : [];
-  renderSessionList(transcriptSessionsEl, sessions);
+  renderSessionList(transcriptSessionsEl, sessions, {
+    checkpoint: localPasteCheckpoint,
+  });
   partialTextEl.textContent = localPartial.trim();
+  partialTextEl.classList.toggle(
+    "has-split",
+    Boolean(sessions.length && localPartial.trim())
+  );
   const hasText = Boolean(sessions.length || localPartial.trim());
   transcriptEl.classList.toggle("show-placeholder", !hasText);
   if (stick) {
@@ -272,6 +293,10 @@ function renderTranslation() {
   renderSessionList(translateSessionsEl, localTranslatedSessions);
   if (translatePartialEl) {
     translatePartialEl.textContent = localTranslatedPartial.trim();
+    translatePartialEl.classList.toggle(
+      "has-split",
+      Boolean(localTranslatedSessions.length && localTranslatedPartial.trim())
+    );
   }
   const hasText = Boolean(
     localTranslatedSessions.length || localTranslatedPartial.trim()
@@ -332,14 +357,6 @@ stopBtn.addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "STOP_CAPTURE" });
   setCapturingUi(false);
   setStatus("Stopped");
-});
-
-clearBtn.addEventListener("click", async () => {
-  localFinal = "";
-  localPartial = "";
-  renderTranscript();
-  await chrome.runtime.sendMessage({ type: "CLEAR_TRANSCRIPT" });
-  setStatus("Cleared");
 });
 
 translateBtn.addEventListener("click", async () => {
@@ -411,6 +428,9 @@ chrome.runtime.onMessage.addListener((message) => {
   if (Array.isArray(message.scriptSessions)) {
     localSessions = message.scriptSessions.filter(Boolean);
   }
+  if (typeof message.pasteCheckpoint === "number") {
+    localPasteCheckpoint = Math.max(0, message.pasteCheckpoint);
+  }
   if (Array.isArray(message.translatedSessions)) {
     localTranslatedSessions = message.translatedSessions.filter(Boolean);
   } else if (typeof message.translatedText === "string" && message.translatedText) {
@@ -448,6 +468,10 @@ chrome.runtime
     localSessions = Array.isArray(state.scriptSessions)
       ? state.scriptSessions.filter(Boolean)
       : [];
+    localPasteCheckpoint =
+      typeof state.pasteCheckpoint === "number"
+        ? Math.max(0, state.pasteCheckpoint)
+        : 0;
     localTranslatedSessions = Array.isArray(state.translatedSessions)
       ? state.translatedSessions.filter(Boolean)
       : [];

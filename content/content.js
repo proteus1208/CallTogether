@@ -59,7 +59,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.7`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.8`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -344,37 +344,6 @@ function tryClickSendButton(fromEl) {
   return false;
 }
 
-function clearEditable(el) {
-  if (!el) return;
-  el.focus();
-
-  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
-    const proto =
-      el.tagName === "TEXTAREA"
-        ? window.HTMLTextAreaElement.prototype
-        : window.HTMLInputElement.prototype;
-    const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
-    if (descriptor?.set) descriptor.set.call(el, "");
-    else el.value = "";
-    try {
-      el.setSelectionRange(0, 0);
-    } catch {
-      // ignore
-    }
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    return;
-  }
-
-  const cleared = document.execCommand("selectAll", false) && document.execCommand("delete", false);
-  if (!cleared) {
-    el.textContent = "";
-  }
-  el.dispatchEvent(
-    new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" })
-  );
-}
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -397,14 +366,11 @@ async function applyPaste(text, { send = false } = {}) {
     await sleep(300);
     const clicked = tryClickSendButton(editable);
     if (!clicked) dispatchEnter(editable);
-    await sleep(60);
-    clearEditable(editable);
   }
   return { ok: true, sent: send };
 }
 
 async function pasteTranscript({ send = false } = {}) {
-  // Consume first so history clears even if paste/send fails.
   let text = "";
   try {
     const response = await chrome.runtime.sendMessage({ type: "CONSUME_TRANSCRIPT" });
@@ -413,8 +379,6 @@ async function pasteTranscript({ send = false } = {}) {
     return { ok: false, error: error?.message || "Could not read transcript." };
   }
 
-  transcript = "";
-  partial = "";
   return applyPaste(text, { send });
 }
 
@@ -524,7 +488,7 @@ window.addEventListener(
     if (!matchesHotkey(event, hotkey)) return;
     event.preventDefault();
     event.stopPropagation();
-    // Hotkey: clear saved transcript and paste only (no Enter).
+    // Hotkey: paste new text since last checkpoint (no Enter).
     pasteTranscript({ send: false });
   },
   true

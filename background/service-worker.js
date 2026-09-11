@@ -24,6 +24,8 @@ let actionBusy = false;
 let scriptSessions = [];
 let translatedSessions = [];
 let translatedPartial = "";
+/** Index into scriptSessions: sessions before this were already pasted. */
+let pasteCheckpoint = 0;
 let translateOpen = false;
 let translateTarget = DEFAULT_SETTINGS.translateTarget;
 let translateInFlight = false;
@@ -73,7 +75,8 @@ async function finalizePendingSession() {
   if (!text) return;
 
   transcript = transcript ? `${transcript} ${text}` : text;
-  stopLiveTranslate();
+  // Keep mid-session translation on screen until final translate finishes.
+  stopLiveTranslate({ clearPartial: false });
   partial = "";
   utteranceEpoch += 1;
   appendScriptSession(text);
@@ -170,10 +173,14 @@ function trimSessionsToWordLimit() {
   ) {
     scriptSessions.shift();
     if (translatedSessions.length) translatedSessions.shift();
+    pasteCheckpoint = Math.max(0, pasteCheckpoint - 1);
   }
   // Keep arrays aligned when translations lag behind.
   while (translatedSessions.length > scriptSessions.length) {
     translatedSessions.shift();
+  }
+  if (pasteCheckpoint > scriptSessions.length) {
+    pasteCheckpoint = scriptSessions.length;
   }
 }
 
@@ -199,9 +206,9 @@ function clearLiveTranslateTimer() {
   }
 }
 
-function stopLiveTranslate() {
+function stopLiveTranslate({ clearPartial = true } = {}) {
   clearLiveTranslateTimer();
-  translatedPartial = "";
+  if (clearPartial) translatedPartial = "";
 }
 
 /** Schedule/continue live partial translate; timer starts after each request finishes. */
@@ -218,8 +225,7 @@ async function runLivePartialTranslate() {
   if (!translateOpen) return;
   const source = partial.trim();
   if (!source) {
-    translatedPartial = "";
-    await broadcastState();
+    // Session may have just finalized — keep last mid translation until final lands.
     return;
   }
   if (liveTranslateBusy) return;
@@ -299,6 +305,11 @@ async function translateSpeechSession(chunk) {
     const piece = (await translateWithGoogle(source, translateTarget)).trim();
     translatedSessions.push(piece || source);
     trimSessionsToWordLimit();
+    // Keep last mid-session translation visible until final is ready; clear only
+    // when there is no newer live speech to show.
+    if (!partial.trim() && !pendingSessionParts.length) {
+      translatedPartial = "";
+    }
     await broadcastState();
   } catch (error) {
     await broadcastState({
@@ -307,7 +318,7 @@ async function translateSpeechSession(chunk) {
   }
 }
 
-/** Full retranslate — only when the user switches language (or first open with backlog). */
+/** Full retranslate — newest sessions first so the latest chat updates fastest. */
 async function retranslateAll() {
   if (translateInFlight) {
     translateQueued = true;
@@ -322,12 +333,21 @@ async function retranslateAll() {
 
   translateInFlight = true;
   try {
-    const next = [];
-    for (const session of scriptSessions) {
-      const piece = (await translateWithGoogle(session, translateTarget)).trim();
-      next.push(piece || session);
+    const n = scriptSessions.length;
+    // Preserve length; replace slots newest → oldest.
+    if (translatedSessions.length !== n) {
+      translatedSessions = scriptSessions.map(
+        (_, i) => translatedSessions[i] || ""
+      );
     }
-    translatedSessions = next;
+    for (let i = n - 1; i >= 0; i -= 1) {
+      const session = scriptSessions[i];
+      const piece = (await translateWithGoogle(session, translateTarget)).trim();
+      translatedSessions[i] = piece || session;
+      await broadcastState({
+        status: i === 0 ? "Translated" : `Translating… ${n - i}/${n}`,
+      });
+    }
     trimSessionsToWordLimit();
     await broadcastState({ status: "Translated" });
   } catch (error) {
@@ -347,11 +367,12 @@ async function consumeTranscriptText() {
   // Block while grey-italic partial speech is still running.
   await waitForLiveSpeechSession();
 
-  const text = [transcript, partial].filter(Boolean).join(" ").trim();
-  transcript = "";
-  partial = "";
+  const fresh = scriptSessions.slice(pasteCheckpoint).filter(Boolean);
+  const text = fresh.join(" ").trim();
+  pasteCheckpoint = scriptSessions.length;
+  // Keep full archive; only advance the paste checkpoint (red line).
+  transcript = joinedScriptArchive();
   lastPartialAt = 0;
-  // Keep scriptSessions + translatedSessions (not cleared on paste/send).
   await broadcastState({ busy: actionBusy });
   return text;
 }
@@ -400,6 +421,7 @@ async function broadcastState(extra = {}) {
     scriptSessions,
     translatedSessions,
     translatedPartial,
+    pasteCheckpoint,
     scriptArchive: joinedScriptArchive(),
     translatedText: joinedTranslatedText(),
     translateOpen,
@@ -607,7 +629,10 @@ async function clearTranscript() {
   pendingSessionParts = [];
   transcript = "";
   partial = "";
-  stopLiveTranslate();
+  scriptSessions = [];
+  translatedSessions = [];
+  pasteCheckpoint = 0;
+  stopLiveTranslate({ clearPartial: true });
   await broadcastState();
   return { ok: true, transcript };
 }
@@ -639,6 +664,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           scriptSessions,
           translatedSessions,
           translatedPartial,
+          pasteCheckpoint,
           scriptArchive: joinedScriptArchive(),
           translatedText: joinedTranslatedText(),
           translateOpen,
