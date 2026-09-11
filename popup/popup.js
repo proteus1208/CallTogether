@@ -1,10 +1,9 @@
 const statusLabel = document.getElementById("statusLabel");
-const transcriptPreview = document.getElementById("transcriptPreview");
-const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
 const errorEl = document.getElementById("error");
 const openOptions = document.getElementById("openOptions");
+const floatToggle = document.getElementById("floatToggle");
 
 function showError(message) {
   if (!message) {
@@ -16,28 +15,33 @@ function showError(message) {
   errorEl.textContent = message;
 }
 
-function renderState({ capturing, transcript, partial, error }) {
-  statusLabel.textContent = capturing ? "Capturing" : "Idle";
-  const text = [transcript, partial].filter(Boolean).join(" ").trim();
-  transcriptPreview.textContent = text || "No transcript yet";
-  startBtn.disabled = !!capturing;
+function renderState({ capturing, error }) {
+  statusLabel.textContent = capturing ? "Listening" : "Idle";
   stopBtn.disabled = !capturing;
   if (error) showError(error);
 }
 
 async function refresh() {
-  const state = await chrome.runtime.sendMessage({ type: "GET_STATE" });
-  renderState(state || { capturing: false, transcript: "", partial: "" });
+  const [state, local] = await Promise.all([
+    chrome.runtime.sendMessage({ type: "GET_STATE" }),
+    chrome.storage.local.get({ floatingVisible: true }),
+  ]);
+  floatToggle.checked = local.floatingVisible !== false;
+  renderState(state || { capturing: false });
 }
 
-startBtn.addEventListener("click", async () => {
+floatToggle.addEventListener("change", async () => {
   showError("");
-  const result = await chrome.runtime.sendMessage({ type: "START_CAPTURE" });
-  if (!result?.ok) {
-    showError(result?.error || "Could not start capture.");
-    return;
+  const visible = floatToggle.checked;
+  await chrome.storage.local.set({ floatingVisible: visible });
+  const result = await chrome.runtime.sendMessage({
+    type: visible ? "SHOW_PANEL" : "HIDE_PANEL",
+  });
+  if (!result?.ok && visible) {
+    showError(result?.error || "Open an AI page tab first.");
+    floatToggle.checked = false;
+    await chrome.storage.local.set({ floatingVisible: false });
   }
-  window.close();
 });
 
 stopBtn.addEventListener("click", async () => {

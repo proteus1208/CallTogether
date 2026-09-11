@@ -49,7 +49,7 @@ function ensureShell() {
       class="ct-frame"
       data-frame
       title="CallTogether panel"
-      allow="display-capture *"
+      allow="microphone *"
     ></iframe>
     <div class="ct-footer">
       Hotkey <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> pastes into the AI input + Enter
@@ -133,6 +133,11 @@ function showPanel({ expand = true } = {}) {
     shellEl.classList.remove("ct-collapsed");
   }
   updateShellChrome();
+}
+
+function hidePanel() {
+  if (!shellEl) return;
+  shellEl.style.display = "none";
 }
 
 function updateShellChrome() {
@@ -255,7 +260,10 @@ function dispatchEnter(el) {
 async function pasteTranscriptAndSend() {
   const editable = resolveEditable(document.activeElement);
   if (!editable) {
-    showPanel();
+    const { floatingVisible } = await chrome.storage.local.get({
+      floatingVisible: true,
+    });
+    if (floatingVisible !== false) showPanel();
     return;
   }
 
@@ -271,17 +279,25 @@ async function init() {
   const stored = await chrome.storage.sync.get(["hotkey"]);
   if (stored.hotkey) hotkey = stored.hotkey;
 
-  const state = await chrome.runtime
-    .sendMessage({ type: "GET_STATE" })
-    .catch(() => null);
+  const [state, local] = await Promise.all([
+    chrome.runtime.sendMessage({ type: "GET_STATE" }).catch(() => null),
+    chrome.storage.local.get({ floatingVisible: true }),
+  ]);
+
   if (state) {
     capturing = !!state.capturing;
     transcript = state.transcript || "";
     partial = state.partial || "";
   }
 
-  // Always mount on the AI page so capture never opens a separate window.
-  showPanel({ expand: capturing || Boolean(transcript.trim() || partial.trim()) });
+  if (local.floatingVisible === false) {
+    hidePanel();
+    return;
+  }
+
+  showPanel({
+    expand: capturing || Boolean(transcript.trim() || partial.trim()),
+  });
   if (!capturing && !transcript.trim() && !partial.trim()) {
     shellEl.classList.add("ct-collapsed");
   }
@@ -294,12 +310,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
+  if (message?.type === "HIDE_PANEL") {
+    hidePanel();
+    sendResponse?.({ ok: true });
+    return;
+  }
+
   if (message?.type !== "STATE_UPDATE") return;
   capturing = !!message.capturing;
   transcript = message.transcript || "";
   partial = message.partial || "";
-  showPanel({
-    expand: capturing || Boolean(transcript.trim() || partial.trim()),
+  chrome.storage.local.get({ floatingVisible: true }, (local) => {
+    if (local.floatingVisible === false) {
+      hidePanel();
+      return;
+    }
+    showPanel({
+      expand: capturing || Boolean(transcript.trim() || partial.trim()),
+    });
   });
 });
 
@@ -307,6 +335,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes.hotkey) {
     hotkey = changes.hotkey.newValue || DEFAULT_HOTKEY;
     updateShellChrome();
+  }
+  if (area === "local" && changes.floatingVisible) {
+    if (changes.floatingVisible.newValue === false) hidePanel();
+    else showPanel({ expand: true });
   }
 });
 

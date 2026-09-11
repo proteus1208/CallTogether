@@ -10,18 +10,7 @@
     <div class="panel">
       <div class="status-row">
         <span class="dot" data-dot></span>
-        <p id="status" class="status">Starting…</p>
-      </div>
-
-      <div id="progressWrap" class="progress-wrap" hidden>
-        <div class="progress-meta">
-          <span id="progressStage">Loading model</span>
-          <span id="progressPct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div id="progressFill" class="progress-fill"></div>
-        </div>
-        <p id="progressDetail" class="progress-detail"></p>
+        <p id="status" class="status">Ready</p>
       </div>
 
       <div class="transcript" id="transcript">
@@ -29,17 +18,14 @@
       </div>
 
       <div class="actions">
-        <button id="shareBtn" type="button" disabled>Share audio</button>
+        <button id="shareBtn" type="button">Start listening</button>
         <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
         <button id="clearBtn" type="button" class="ghost">Clear</button>
       </div>
 
-      <p class="hint" id="hint">
-        Detecting system… model loads inside this panel (no extra window).
-      </p>
+      <p class="hint" id="hint"></p>
     </div>
 
-    <script src="../vendor/vosk/vosk.js"></script>
     <script type="module" src="panel.js"></script>
   </body>
 </html>

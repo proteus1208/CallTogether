@@ -10,7 +10,7 @@
     <main>
       <header>
         <h1>CallTogether</h1>
-        <p>Floating panel stays on the AI page — no separate window</p>
+        <p>Call notes → AI chat</p>
       </header>
 
       <section class="state">
@@ -18,11 +18,17 @@
           <span>Status</span>
           <strong id="statusLabel">Idle</strong>
         </div>
-        <div class="transcript" id="transcriptPreview">No transcript yet</div>
       </section>
 
+      <label class="toggle-row" for="floatToggle">
+        <span>
+          <strong>Floating panel</strong>
+          <small>Show on the AI page</small>
+        </span>
+        <input id="floatToggle" type="checkbox" role="switch" />
+      </label>
+
       <section class="actions">
-        <button id="startBtn" type="button">Show panel</button>
         <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
         <button id="clearBtn" type="button" class="ghost">Clear</button>
       </section>
@@ -31,7 +37,6 @@
 
       <footer>
         <a href="#" id="openOptions">Settings</a>
-        <span>Use Share audio on the floating panel</span>
       </footer>
     </main>
     <script type="module" src="popup.js"></script>

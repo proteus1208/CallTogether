@@ -1,50 +1,28 @@
 # CallTogether
 
-Free Chrome extension: capture **system/tab call audio**, show a **live floating transcript**, paste into AI chat with a hotkey.
+Live call transcript on a floating AI-page panel + hotkey paste. Free (Chrome Speech API).
 
-**No OpenAI. No paid APIs.**
+## Why model load failed before
 
-## How it works
+The Vosk file was **already local** (`models/en-us-small.tar.gz`). You did **not** need to preload anything else.
 
-| Step | Tech |
-|------|------|
-| Capture sound output | Chrome `desktopCapture` from the **in-page** float (no extra window) |
-| Live speech → text | [`vosk-browser`](https://github.com/ccoreilly/vosk-browser) (WASM, offline, free) |
-| Show script | Floating draggable panel on the AI page |
-| Paste + Enter | Configurable hotkey into focused input/textarea/contenteditable |
+Chrome **Manifest V3 blocks `unsafe-eval`**. Vosk’s worker evaluates JS strings, so CSP kills it:
 
-Chrome’s built-in **Web Speech API** only listens to the **microphone**, not a shared system/tab stream. For real call-output capture, local Vosk is the free path.
+`Evaluating a string as JavaScript violates ... 'unsafe-eval' is not an allowed source`
 
-## Install
+`'wasm-unsafe-eval'` is allowed; plain `eval` is not. So Vosk cannot run in this extension.
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. **Load unpacked** → select this `CallTogether` folder
-4. Reload the AI site tab after installing
+## Current engine
+
+Chrome **Web Speech API** (built-in, free, no model file).
+
+- Listens via **microphone**
+- On **Windows**, for call/system audio: set **Stereo Mix** as the mic, or play the call on speakers
+- Transcript shows only on the **floating panel** (not in the popup)
 
 ## Use
 
-1. Open the AI platform tab (prompt/CV upload stays manual)
-2. You’ll see a **CallTogether** float on that page (collapsed at first)
-3. Expand it → **Share audio** → pick the call tab/window with audio
-4. Stay on the AI tab — transcript updates in the float
-5. Focus the AI input → hotkey (default `Alt+Shift+V`) → paste + Enter
-
-The extension popup’s **Show panel** only reveals the in-page float; it does **not** open a separate capture window.
-
-## Settings
-
-Extension options: configure the paste hotkey only.
-
-## Project layout
-
-```
-manifest.json
-background/          state + messaging
-popup/               show in-page panel / stop
-panel/               floating UI + getDisplayMedia + Vosk
-content/             injects draggable iframe shell + hotkey paste
-vendor/vosk/         vosk-browser bundle
-models/              English Vosk model (offline)
-options/             hotkey settings
-```
+1. Reload the extension + refresh the AI tab  
+2. Popup → toggle **Floating panel** on  
+3. On the float → **Start listening**  
+4. Hotkey (default `Alt+Shift+V`) pastes into the AI input + Enter  

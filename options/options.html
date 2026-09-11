@@ -11,9 +11,8 @@
       <header>
         <h1>CallTogether Settings</h1>
         <p>
-          Free local transcription (Vosk) — no API keys. Configure the paste
-          hotkey. Initial AI prompts and CV upload stay manual in the AI
-          platform.
+          Free Chrome Speech recognition (no paid API, no local Vosk model).
+          Configure the paste hotkey only.
         </p>
       </header>
 
@@ -21,8 +20,8 @@
         <section>
           <h2>Paste hotkey</h2>
           <p class="hint">
-            Focus an input / textarea / chat composer on the AI site, then press
-            this shortcut to paste the stored transcript and send Enter.
+            Focus the AI chat input, then press this shortcut to paste the
+            transcript and send Enter.
           </p>
           <label class="hotkey-box">
             <span>Click and press a shortcut</span>
@@ -42,12 +41,12 @@
         </section>
 
         <section>
-          <h2>Speech engine</h2>
+          <h2>Why not Vosk?</h2>
           <p class="hint">
-            CallTogether captures tab/system audio with Chrome’s
-            <code>getDisplayMedia</code>, then transcribes live with
-            <strong>vosk-browser</strong> (WASM, offline, free). No OpenAI or
-            other paid API is used.
+            Chrome MV3 extensions cannot use <code>unsafe-eval</code>. Vosk’s
+            worker needs that, so model load fails even when the
+            <code>.tar.gz</code> is already on disk. CallTogether now uses the
+            built-in Web Speech API instead (no model download).
           </p>
         </section>
 

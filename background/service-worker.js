@@ -17,6 +17,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (!stored.hotkey) {
     await chrome.storage.sync.set(DEFAULT_SETTINGS);
   }
+  const local = await chrome.storage.local.get(["floatingVisible"]);
+  if (local.floatingVisible === undefined) {
+    await chrome.storage.local.set({ floatingVisible: true });
+  }
 });
 
 async function broadcastState(extra = {}) {
@@ -49,7 +53,7 @@ async function broadcastState(extra = {}) {
   );
 }
 
-async function showPanelOnActiveTab() {
+async function sendToActiveHttpTab(message) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
     return { ok: false, error: "No active tab. Open your AI platform tab first." };
@@ -57,12 +61,12 @@ async function showPanelOnActiveTab() {
   if (!tab.url || !/^https?:/i.test(tab.url)) {
     return {
       ok: false,
-      error: "Open a normal https AI page (ChatGPT, Claude, etc.), then Start.",
+      error: "Open a normal https AI page first.",
     };
   }
 
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: "SHOW_PANEL" });
+    await chrome.tabs.sendMessage(tab.id, message);
   } catch {
     try {
       await chrome.scripting.executeScript({
@@ -73,11 +77,11 @@ async function showPanelOnActiveTab() {
         target: { tabId: tab.id },
         files: ["content/content.css"],
       });
-      await chrome.tabs.sendMessage(tab.id, { type: "SHOW_PANEL" });
+      await chrome.tabs.sendMessage(tab.id, message);
     } catch (error) {
       return {
         ok: false,
-        error: error?.message || "Could not inject panel into this tab.",
+        error: error?.message || "Could not reach this tab.",
       };
     }
   }
@@ -85,13 +89,14 @@ async function showPanelOnActiveTab() {
   return { ok: true };
 }
 
-async function startCapture() {
-  // Do not open a separate window — only reveal the in-page floating panel.
-  transcript = "";
-  partial = "";
-  capturing = false;
-  await broadcastState();
-  return showPanelOnActiveTab();
+async function showPanelOnActiveTab() {
+  await chrome.storage.local.set({ floatingVisible: true });
+  return sendToActiveHttpTab({ type: "SHOW_PANEL" });
+}
+
+async function hidePanelOnActiveTab() {
+  await chrome.storage.local.set({ floatingVisible: false });
+  return sendToActiveHttpTab({ type: "HIDE_PANEL" });
 }
 
 async function stopCapture() {
@@ -123,9 +128,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ capturing, transcript, partial });
         break;
       }
-      case "START_CAPTURE":
       case "SHOW_PANEL": {
-        sendResponse(await startCapture());
+        sendResponse(await showPanelOnActiveTab());
+        break;
+      }
+      case "HIDE_PANEL": {
+        sendResponse(await hidePanelOnActiveTab());
         break;
       }
       case "STOP_CAPTURE": {
