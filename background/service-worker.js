@@ -7,13 +7,11 @@ const DEFAULT_SETTINGS = {
     shiftKey: true,
     key: "v",
   },
-  openaiApiKey: "",
-  whisperModel: "whisper-1",
-  chunkSeconds: 4,
 };
 
 let capturing = false;
 let transcript = "";
+let partial = "";
 let captureWindowId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -28,10 +26,11 @@ async function broadcastState(extra = {}) {
     type: "STATE_UPDATE",
     capturing,
     transcript,
+    partial,
     ...extra,
   };
 
-  await chrome.storage.session.set({ capturing, transcript });
+  await chrome.storage.session.set({ capturing, transcript, partial });
 
   try {
     await chrome.runtime.sendMessage(payload);
@@ -65,8 +64,8 @@ async function openCaptureWindow() {
   const win = await chrome.windows.create({
     url: chrome.runtime.getURL(CAPTURE_URL),
     type: "popup",
-    width: 420,
-    height: 360,
+    width: 440,
+    height: 420,
     focused: true,
   });
 
@@ -85,16 +84,8 @@ async function closeCaptureWindow() {
 }
 
 async function startCapture() {
-  const { openaiApiKey } = await chrome.storage.sync.get(["openaiApiKey"]);
-  if (!openaiApiKey) {
-    return {
-      ok: false,
-      error:
-        "Add your OpenAI API key in Settings so CallTogether can transcribe system audio with Whisper.",
-    };
-  }
-
   transcript = "";
+  partial = "";
   capturing = false;
   await broadcastState();
   await openCaptureWindow();
@@ -103,6 +94,7 @@ async function startCapture() {
 
 async function stopCapture() {
   capturing = false;
+  partial = "";
   try {
     await chrome.runtime.sendMessage({
       type: "CAPTURE_PAGE_STOP",
@@ -118,6 +110,7 @@ async function stopCapture() {
 
 async function clearTranscript() {
   transcript = "";
+  partial = "";
   await broadcastState();
   return { ok: true, transcript };
 }
@@ -127,6 +120,7 @@ chrome.windows.onRemoved.addListener((windowId) => {
     captureWindowId = null;
     if (capturing) {
       capturing = false;
+      partial = "";
       broadcastState({ error: "Capture window closed." });
     }
   }
@@ -136,7 +130,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case "GET_STATE": {
-        sendResponse({ capturing, transcript });
+        sendResponse({ capturing, transcript, partial });
         break;
       }
       case "START_CAPTURE": {
@@ -152,8 +146,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "CONSUME_TRANSCRIPT": {
-        const text = transcript.trim();
+        const text = [transcript, partial].filter(Boolean).join(" ").trim();
         transcript = "";
+        partial = "";
         await broadcastState();
         sendResponse({ ok: true, text });
         break;
@@ -168,19 +163,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const chunk = (message.text || "").trim();
         if (chunk) {
           transcript = transcript ? `${transcript} ${chunk}` : chunk;
+          partial = "";
           await broadcastState();
         }
         sendResponse({ ok: true });
         break;
       }
+      case "TRANSCRIPT_PARTIAL": {
+        partial = (message.text || "").trim();
+        await broadcastState();
+        sendResponse({ ok: true });
+        break;
+      }
       case "CAPTURE_ERROR": {
         capturing = false;
+        partial = "";
         await broadcastState({ error: message.error || "Capture failed." });
         sendResponse({ ok: true });
         break;
       }
       case "CAPTURE_ENDED": {
         capturing = false;
+        partial = "";
         if (sender?.tab?.windowId != null) {
           captureWindowId = null;
         }

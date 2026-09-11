@@ -11,8 +11,9 @@
       <header>
         <h1>CallTogether Settings</h1>
         <p>
-          Configure the paste hotkey and Whisper transcription. Initial AI
-          prompts and CV upload stay manual in the AI platform.
+          Free local transcription (Vosk) — no API keys. Configure the paste
+          hotkey. Initial AI prompts and CV upload stay manual in the AI
+          platform.
         </p>
       </header>
 
@@ -41,28 +42,13 @@
         </section>
 
         <section>
-          <h2>Transcription</h2>
-          <label>
-            OpenAI API key
-            <input
-              id="openaiApiKey"
-              type="password"
-              autocomplete="off"
-              placeholder="sk-..."
-            />
-          </label>
-          <label>
-            Whisper model
-            <select id="whisperModel">
-              <option value="whisper-1">whisper-1</option>
-              <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option>
-              <option value="gpt-4o-transcribe">gpt-4o-transcribe</option>
-            </select>
-          </label>
-          <label>
-            Chunk length (seconds)
-            <input id="chunkSeconds" type="number" min="2" max="20" step="1" />
-          </label>
+          <h2>Speech engine</h2>
+          <p class="hint">
+            CallTogether captures tab/system audio with Chrome’s
+            <code>getDisplayMedia</code>, then transcribes live with
+            <strong>vosk-browser</strong> (WASM, offline, free). No OpenAI or
+            other paid API is used.
+          </p>
         </section>
 
         <div class="actions">

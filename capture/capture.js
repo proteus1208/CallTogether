@@ -1,11 +1,13 @@
+const MODEL_URL = chrome.runtime.getURL("models/en-us-small.tar.gz");
+
 let mediaStream = null;
-let mediaRecorder = null;
-let chunkTimer = null;
-let audioChunks = [];
-let openaiApiKey = "";
-let whisperModel = "whisper-1";
-let chunkSeconds = 4;
-let transcribing = false;
+let audioContext = null;
+let processorNode = null;
+let silentGain = null;
+let sourceNode = null;
+let voskModel = null;
+let recognizer = null;
+let modelReady = false;
 
 const statusEl = document.getElementById("status");
 const shareBtn = document.getElementById("shareBtn");
@@ -16,23 +18,26 @@ function setStatus(text, isError = false) {
   statusEl.classList.toggle("error", isError);
 }
 
-async function loadSettings() {
-  const settings = await chrome.storage.sync.get([
-    "openaiApiKey",
-    "whisperModel",
-    "chunkSeconds",
-  ]);
-  openaiApiKey = settings.openaiApiKey || "";
-  whisperModel = settings.whisperModel || "whisper-1";
-  chunkSeconds = Math.max(2, Number(settings.chunkSeconds) || 4);
+async function ensureModel() {
+  if (voskModel) {
+    modelReady = true;
+    return;
+  }
+
+  if (!globalThis.Vosk?.createModel) {
+    throw new Error("Vosk library failed to load.");
+  }
+
+  setStatus("Loading free speech model (one-time)…");
+  voskModel = await globalThis.Vosk.createModel(MODEL_URL);
+  modelReady = true;
+  setStatus("Model ready — click Share audio.");
+  shareBtn.disabled = false;
 }
 
 async function startCapture() {
-  await loadSettings();
-
-  if (!openaiApiKey) {
-    setStatus("Missing OpenAI API key. Open Settings first.", true);
-    await chrome.runtime.sendMessage({ type: "OPEN_OPTIONS" });
+  if (!modelReady) {
+    setStatus("Speech model is still loading…", true);
     return;
   }
 
@@ -75,122 +80,104 @@ async function startCapture() {
     await stopCapture({ notifyEnded: true });
   });
 
-  const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-    ? "audio/webm;codecs=opus"
-    : "audio/webm";
+  audioContext = new AudioContext();
+  if (audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
 
-  mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
-  audioChunks = [];
+  recognizer = new voskModel.KaldiRecognizer(audioContext.sampleRate);
+  recognizer.setWords(true);
 
-  mediaRecorder.ondataavailable = (event) => {
-    if (event.data?.size) {
-      audioChunks.push(event.data);
+  recognizer.on("result", (message) => {
+    const text = (message?.result?.text || "").trim();
+    if (!text) return;
+    chrome.runtime.sendMessage({ type: "TRANSCRIPT_CHUNK", text });
+    setStatus(`Heard: ${text.slice(0, 90)}${text.length > 90 ? "…" : ""}`);
+  });
+
+  recognizer.on("partialresult", (message) => {
+    const text = (message?.result?.partial || "").trim();
+    chrome.runtime.sendMessage({ type: "TRANSCRIPT_PARTIAL", text });
+  });
+
+  sourceNode = audioContext.createMediaStreamSource(mediaStream);
+  processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+  silentGain = audioContext.createGain();
+  silentGain.gain.value = 0;
+
+  processorNode.onaudioprocess = (event) => {
+    try {
+      recognizer.acceptWaveform(event.inputBuffer);
+    } catch (error) {
+      console.error("acceptWaveform failed", error);
     }
   };
 
-  mediaRecorder.start(1000);
-  chunkTimer = setInterval(() => {
-    flushAndTranscribe().catch((error) => {
-      console.error(error);
-      setStatus(error.message || "Transcription error", true);
-    });
-  }, chunkSeconds * 1000);
+  sourceNode.connect(processorNode);
+  processorNode.connect(silentGain);
+  silentGain.connect(audioContext.destination);
 
   shareBtn.disabled = true;
   stopBtn.disabled = false;
-  setStatus("Capturing audio… keep this window open.");
+  setStatus("Live capture running… keep this window open.");
   await chrome.runtime.sendMessage({ type: "CAPTURE_STARTED" });
 }
 
-async function flushAndTranscribe() {
-  if (!mediaRecorder || mediaRecorder.state === "inactive" || transcribing) {
-    return;
-  }
-
-  transcribing = true;
-  try {
-    const parts = await new Promise((resolve) => {
-      const handle = (event) => {
-        mediaRecorder.removeEventListener("dataavailable", handle);
-        const pending = [...audioChunks];
-        audioChunks = [];
-        if (event.data?.size) pending.push(event.data);
-        resolve(pending);
-      };
-      mediaRecorder.addEventListener("dataavailable", handle);
-      mediaRecorder.requestData();
-    });
-
-    if (!parts.length) return;
-
-    const blob = new Blob(parts, {
-      type: mediaRecorder.mimeType || "audio/webm",
-    });
-    if (blob.size < 2500) return;
-
-    const text = await transcribeBlob(blob);
-    if (text) {
-      await chrome.runtime.sendMessage({ type: "TRANSCRIPT_CHUNK", text });
-      setStatus(`Last chunk: ${text.slice(0, 80)}${text.length > 80 ? "…" : ""}`);
-    }
-  } finally {
-    transcribing = false;
-  }
-}
-
-async function transcribeBlob(blob) {
-  const form = new FormData();
-  form.append("file", blob, "chunk.webm");
-  form.append("model", whisperModel);
-  form.append("response_format", "json");
-
-  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openaiApiKey}`,
-    },
-    body: form,
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Whisper error ${response.status}: ${detail}`);
-  }
-
-  const data = await response.json();
-  return (data.text || "").trim();
-}
-
 async function stopCapture({ notifyEnded = false } = {}) {
-  if (chunkTimer) {
-    clearInterval(chunkTimer);
-    chunkTimer = null;
-  }
-
-  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+  if (processorNode) {
+    processorNode.onaudioprocess = null;
     try {
-      await flushAndTranscribe();
+      processorNode.disconnect();
     } catch {
       // ignore
     }
+    processorNode = null;
+  }
+
+  if (sourceNode) {
     try {
-      mediaRecorder.stop();
+      sourceNode.disconnect();
     } catch {
       // ignore
     }
+    sourceNode = null;
   }
 
-  mediaRecorder = null;
-  audioChunks = [];
+  if (silentGain) {
+    try {
+      silentGain.disconnect();
+    } catch {
+      // ignore
+    }
+    silentGain = null;
+  }
+
+  if (audioContext) {
+    try {
+      await audioContext.close();
+    } catch {
+      // ignore
+    }
+    audioContext = null;
+  }
+
+  if (recognizer) {
+    try {
+      recognizer.remove();
+    } catch {
+      // ignore
+    }
+    recognizer = null;
+  }
 
   if (mediaStream) {
     mediaStream.getTracks().forEach((track) => track.stop());
     mediaStream = null;
   }
 
-  shareBtn.disabled = false;
+  shareBtn.disabled = !modelReady;
   stopBtn.disabled = true;
-  setStatus(notifyEnded ? "Stopped." : "Stopped.");
+  setStatus(modelReady ? "Stopped." : "Speech model not ready.");
 
   if (notifyEnded) {
     await chrome.runtime.sendMessage({ type: "CAPTURE_ENDED" });
@@ -216,6 +203,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-loadSettings().then(() => {
-  setStatus("Ready — click Share audio.");
+ensureModel().catch(async (error) => {
+  const message = error?.message || String(error);
+  setStatus(message, true);
+  shareBtn.disabled = true;
+  await chrome.runtime.sendMessage({ type: "CAPTURE_ERROR", error: message });
 });

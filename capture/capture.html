@@ -10,21 +10,23 @@
     <main class="panel">
       <h1>CallTogether</h1>
       <p class="lead">
-        Share a tab or screen <strong>with audio</strong> so the extension can
-        transcribe the call output.
+        Free local speech recognition (Vosk). Share a tab/screen
+        <strong>with audio</strong> — no API key, no paid service.
       </p>
       <ol>
+        <li>Wait for the speech model to load (first time only)</li>
         <li>Click <strong>Share audio</strong></li>
-        <li>Pick the call tab/window (or entire screen)</li>
+        <li>Pick the call tab/window</li>
         <li>Enable <strong>Share tab audio</strong> / <strong>Share system audio</strong></li>
-        <li>Keep this window open while you work in the AI platform</li>
+        <li>Keep this window open; watch the floating transcript on the AI page</li>
       </ol>
-      <p id="status" class="status">Ready</p>
+      <p id="status" class="status">Loading speech model…</p>
       <div class="actions">
-        <button id="shareBtn" type="button">Share audio</button>
+        <button id="shareBtn" type="button" disabled>Share audio</button>
         <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
       </div>
     </main>
+    <script src="../vendor/vosk/vosk.js"></script>
     <script type="module" src="capture.js"></script>
   </body>
 </html>

@@ -1,71 +1,49 @@
 # CallTogether
 
-Chrome extension that captures **system/tab call audio**, shows a live transcript in a **floating draggable panel**, and pastes it into the focused AI chat input with a **hotkey** (then sends Enter).
+Free Chrome extension: capture **system/tab call audio**, show a **live floating transcript**, paste into AI chat with a hotkey.
 
-## How to use
+**No OpenAI. No paid APIs.**
 
-1. **Install the extension**
-   - Open `chrome://extensions`
-   - Enable **Developer mode**
-   - Click **Load unpacked**
-   - Select this folder (`CallTogether`)
+## How it works
 
-2. **Open Settings** (extension details → Extension options, or popup → Settings)
-   - Paste your **OpenAI API key** (used for Whisper transcription)
-   - Set the **paste hotkey** (default: `Alt+Shift+V`)
+| Step | Tech |
+|------|------|
+| Capture sound output | Chrome `getDisplayMedia` (share tab/screen **with audio**) |
+| Live speech → text | [`vosk-browser`](https://github.com/ccoreilly/vosk-browser) (WASM, offline, free) |
+| Show script | Floating draggable panel on the AI page |
+| Paste + Enter | Configurable hotkey into focused input/textarea/contenteditable |
 
-3. **Open your AI platform** (ChatGPT, Claude, etc.)
-   - Enter your initial prompt and upload a CV yourself — the extension does not touch that step
+Chrome’s built-in **Web Speech API** only listens to the **microphone**, not a shared system/tab stream. For real call-output capture, local Vosk is the free path.
 
-4. **Click Start** in the extension popup
-   - A small **Capture** window opens
-   - Click **Share audio**
-   - Choose the call tab/window (or screen)
-   - Enable **Share tab audio** / **Share system audio**
-   - Keep the capture window open while you work
+## Install
 
-5. **Watch the floating panel** on the AI site
-   - Transcript accumulates as speech is recognized
-   - Drag the panel anywhere; use **Clear** to reset
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. **Load unpacked** → select this `CallTogether` folder
+4. Reload the AI site tab after installing
 
-6. **Paste with the hotkey**
-   - Focus the AI chat input / textarea / composer
-   - Press your hotkey
-   - CallTogether pastes the stored transcript, clears it, and dispatches **Enter**
+## Use
 
-## Flow
+1. Open the AI platform (prompt/CV upload stays manual)
+2. Extension popup → **Start**
+3. Wait for the free speech model to load (first open)
+4. **Share audio** → pick the call tab/window → enable tab/system audio
+5. Watch the **floating transcript** on the AI page
+6. Focus the AI input → press hotkey (default `Alt+Shift+V`) → paste + Enter
 
-```
-Call audio (shared tab/system)
-        │
-        ▼
- Capture window (MediaRecorder)
-        │
-        ▼
- OpenAI Whisper (chunked)
-        │
-        ▼
- Floating transcript panel
-        │  hotkey on focused input
-        ▼
- Paste text + Enter → AI reply
-```
+## Settings
 
-## Notes
-
-- **macOS** usually shares **tab audio** best when you pick a Chrome tab. Entire-screen system audio support is stronger on Windows/ChromeOS.
-- Keep the capture popup open; closing it stops capture.
-- Chat composers that are `contenteditable` (not only `<textarea>`) are supported.
-- API key stays in `chrome.storage.sync` on your profile; it is sent only to OpenAI’s transcription API.
+Extension options: configure the paste hotkey only.
 
 ## Project layout
 
 ```
 manifest.json
-background/service-worker.js
-popup/          Start / Stop
-options/        Hotkey + API key
-capture/        getDisplayMedia + Whisper
-content/        Floating UI + hotkey paste
-icons/
+background/          state + messaging
+popup/               Start / Stop
+capture/             getDisplayMedia + Vosk live STT
+content/             floating transcript + hotkey paste
+vendor/vosk/         vosk-browser bundle
+models/              English Vosk model (offline)
+options/             hotkey settings
 ```

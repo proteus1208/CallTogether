@@ -6,9 +6,6 @@ const DEFAULTS = {
     shiftKey: true,
     key: "v",
   },
-  openaiApiKey: "",
-  whisperModel: "whisper-1",
-  chunkSeconds: 4,
 };
 
 const form = document.getElementById("settingsForm");
@@ -17,9 +14,6 @@ const ctrlKey = document.getElementById("ctrlKey");
 const altKey = document.getElementById("altKey");
 const shiftKey = document.getElementById("shiftKey");
 const metaKey = document.getElementById("metaKey");
-const openaiApiKey = document.getElementById("openaiApiKey");
-const whisperModel = document.getElementById("whisperModel");
-const chunkSeconds = document.getElementById("chunkSeconds");
 const saveStatus = document.getElementById("saveStatus");
 
 let draftHotkey = { ...DEFAULTS.hotkey };
@@ -44,9 +38,6 @@ function syncHotkeyUI() {
 
 function applySettings(settings) {
   draftHotkey = { ...DEFAULTS.hotkey, ...(settings.hotkey || {}) };
-  openaiApiKey.value = settings.openaiApiKey || "";
-  whisperModel.value = settings.whisperModel || DEFAULTS.whisperModel;
-  chunkSeconds.value = String(settings.chunkSeconds || DEFAULTS.chunkSeconds);
   syncHotkeyUI();
 }
 
@@ -88,13 +79,7 @@ hotkeyInput.addEventListener("keydown", (event) => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const payload = {
-    hotkey: draftHotkey,
-    openaiApiKey: openaiApiKey.value.trim(),
-    whisperModel: whisperModel.value,
-    chunkSeconds: Math.max(2, Math.min(20, Number(chunkSeconds.value) || 4)),
-  };
-  await chrome.storage.sync.set(payload);
+  await chrome.storage.sync.set({ hotkey: draftHotkey });
   saveStatus.textContent = "Saved";
   setTimeout(() => {
     saveStatus.textContent = "";

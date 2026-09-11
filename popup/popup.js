@@ -16,9 +16,10 @@ function showError(message) {
   errorEl.textContent = message;
 }
 
-function renderState({ capturing, transcript, error }) {
+function renderState({ capturing, transcript, partial, error }) {
   statusLabel.textContent = capturing ? "Capturing" : "Idle";
-  transcriptPreview.textContent = (transcript || "").trim() || "No transcript yet";
+  const text = [transcript, partial].filter(Boolean).join(" ").trim();
+  transcriptPreview.textContent = text || "No transcript yet";
   startBtn.disabled = !!capturing;
   stopBtn.disabled = !capturing;
   if (error) showError(error);
@@ -26,7 +27,7 @@ function renderState({ capturing, transcript, error }) {
 
 async function refresh() {
   const state = await chrome.runtime.sendMessage({ type: "GET_STATE" });
-  renderState(state || { capturing: false, transcript: "" });
+  renderState(state || { capturing: false, transcript: "", partial: "" });
 }
 
 startBtn.addEventListener("click", async () => {

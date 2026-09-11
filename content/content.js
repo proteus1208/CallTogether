@@ -9,6 +9,7 @@ const DEFAULT_HOTKEY = {
 };
 
 let transcript = "";
+let partial = "";
 let capturing = false;
 let hotkey = { ...DEFAULT_HOTKEY };
 let panelEl = null;
@@ -45,7 +46,9 @@ function ensurePanel() {
       </div>
     </div>
     <div class="ct-status" data-status>Idle</div>
-    <div class="ct-body" data-body>Waiting for captured speech…</div>
+    <div class="ct-body" data-body>
+      <span data-final></span><span class="ct-partial" data-partial></span>
+    </div>
     <div class="ct-footer">
       Hotkey <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> pastes into the focused input and sends Enter
     </div>
@@ -117,7 +120,8 @@ function onDragEnd() {
 }
 
 function render() {
-  const visible = capturing || Boolean(transcript.trim());
+  const visible =
+    capturing || Boolean(transcript.trim()) || Boolean(partial.trim());
   if (!visible) {
     if (panelEl) panelEl.style.display = "none";
     return;
@@ -127,11 +131,25 @@ function render() {
   panelEl.style.display = "flex";
   const dot = panelEl.querySelector("[data-dot]");
   const hotkeyEl = panelEl.querySelector("[data-hotkey]");
+  const finalEl = panelEl.querySelector("[data-final]");
+  const partialEl = panelEl.querySelector("[data-partial]");
 
   panelEl.classList.toggle("ct-capturing", capturing);
   dot.classList.toggle("ct-live", capturing);
-  statusEl.textContent = capturing ? "Listening to system/tab audio" : "Idle";
-  bodyEl.textContent = transcript.trim() || "Waiting for captured speech…";
+  statusEl.textContent = capturing
+    ? "Live transcript (system/tab audio)"
+    : "Idle";
+
+  const finalText = transcript.trim();
+  const partialText = partial.trim();
+  if (!finalText && !partialText) {
+    finalEl.textContent = "Waiting for captured speech…";
+    partialEl.textContent = "";
+  } else {
+    finalEl.textContent = finalText ? `${finalText} ` : "";
+    partialEl.textContent = partialText;
+  }
+
   hotkeyEl.textContent = formatHotkey(hotkey);
 }
 
@@ -278,6 +296,7 @@ async function init() {
   if (state) {
     capturing = !!state.capturing;
     transcript = state.transcript || "";
+    partial = state.partial || "";
   }
 
   render();
@@ -287,8 +306,9 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type !== "STATE_UPDATE") return;
   capturing = !!message.capturing;
   transcript = message.transcript || "";
+  partial = message.partial || "";
   render();
-  if (message.error) {
+  if (message.error && statusEl) {
     statusEl.textContent = message.error;
   }
 });
