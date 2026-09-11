@@ -71,22 +71,24 @@
 }
 
 #calltogether-float-root .ct-drag-grip {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 3px) !important;
+  grid-template-rows: repeat(2, 3px) !important;
   gap: 3px !important;
-  width: 18px !important;
-  height: 18px !important;
-  padding: 2px !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 4px 2px !important;
   flex: 0 0 auto !important;
   opacity: 0.55 !important;
   pointer-events: none !important;
+  place-content: center !important;
 }
 
 #calltogether-float-root .ct-drag-grip span {
   display: block !important;
-  height: 2px !important;
-  border-radius: 2px !important;
+  width: 3px !important;
+  height: 3px !important;
+  border-radius: 50% !important;
   background: #5b6b7c !important;
 }
 

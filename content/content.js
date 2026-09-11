@@ -46,6 +46,7 @@ function ensureShell() {
       </div>
       <div class="ct-drag-grip" aria-hidden="true">
         <span></span><span></span><span></span>
+        <span></span><span></span><span></span>
       </div>
     </div>
     <iframe
@@ -57,7 +58,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.7`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.9`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -169,10 +170,15 @@ function matchesHotkey(event, config) {
   if (event.repeat) return false;
   if (typeof event.key !== "string") return false;
 
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   const expected = config.key.length === 1 ? config.key.toLowerCase() : config.key;
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const fromCode =
+    typeof event.code === "string" && event.code.startsWith("Key")
+      ? event.code.slice(3).toLowerCase()
+      : "";
+  const keyMatches = key === expected || fromCode === expected;
   return (
-    key === expected &&
+    keyMatches &&
     !!event.altKey === !!config.altKey &&
     !!event.ctrlKey === !!config.ctrlKey &&
     !!event.metaKey === !!config.metaKey &&
@@ -260,28 +266,99 @@ function dispatchEnter(el) {
     which: 13,
     bubbles: true,
     cancelable: true,
+    composed: true,
   };
+  el.focus();
   el.dispatchEvent(new KeyboardEvent("keydown", opts));
   el.dispatchEvent(new KeyboardEvent("keypress", opts));
   el.dispatchEvent(new KeyboardEvent("keyup", opts));
+
+  const form = el.closest?.("form");
+  if (form) {
+    try {
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    } catch {
+      // ignore
+    }
+  }
 }
 
-async function pasteTranscript({ send = false } = {}) {
+function tryClickSendButton(fromEl) {
+  const scopes = [];
+  if (fromEl instanceof Element) {
+    const form = fromEl.closest("form");
+    if (form) scopes.push(form);
+    let node = fromEl.parentElement;
+    for (let i = 0; i < 8 && node; i += 1) {
+      scopes.push(node);
+      node = node.parentElement;
+    }
+  }
+
+  const selectors = [
+    'button[data-testid="send-button"]',
+    'button[aria-label="Send message"]',
+    'button[aria-label="Send prompt"]',
+    'button[aria-label="Send"]',
+    'button[type="submit"]',
+  ];
+
+  for (const root of scopes) {
+    if (!root?.querySelector) continue;
+    for (const sel of selectors) {
+      const btn = root.querySelector(sel);
+      if (btn && !btn.disabled && btn.getAttribute("aria-disabled") !== "true") {
+        btn.click();
+        return true;
+      }
+    }
+    for (const btn of root.querySelectorAll("button")) {
+      if (btn.disabled || btn.getAttribute("aria-disabled") === "true") continue;
+      const label = `${btn.getAttribute("aria-label") || ""} ${btn.textContent || ""}`;
+      if (/^\s*send\b/i.test(label.trim()) || /send message|send prompt/i.test(label)) {
+        btn.click();
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+async function applyPaste(text, { send = false } = {}) {
   const editable =
     resolveEditable(document.activeElement) ||
     (lastEditable && document.contains(lastEditable) ? lastEditable : null);
   if (!editable) {
-    showPanel({ expand: true });
+    showPanel();
     return { ok: false, error: "Focus a chat input first." };
   }
 
-  const response = await chrome.runtime.sendMessage({ type: "CONSUME_TRANSCRIPT" });
-  const text = (response?.text || "").trim();
-  if (!text) return { ok: true, sent: false, empty: true };
+  const value = (text || "").trim();
+  if (!value) return { ok: true, sent: false, empty: true };
 
-  insertText(editable, text);
-  if (send) dispatchEnter(editable);
+  insertText(editable, value);
+  if (send) {
+    dispatchEnter(editable);
+    // React/ProseMirror UIs often ignore synthetic Enter — click Send too.
+    tryClickSendButton(editable);
+  }
   return { ok: true, sent: send };
+}
+
+async function pasteTranscript({ send = false } = {}) {
+  // Consume first so history clears even if paste/send fails.
+  let text = "";
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "CONSUME_TRANSCRIPT" });
+    text = response?.text || "";
+  } catch (error) {
+    return { ok: false, error: error?.message || "Could not read transcript." };
+  }
+
+  transcript = "";
+  partial = "";
+  return applyPaste(text, { send });
 }
 
 async function isFloatingEnabled() {
@@ -330,6 +407,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "SUBMIT_TRANSCRIPT") {
     pasteTranscript({ send: true }).then((result) => sendResponse?.(result));
+    return true;
+  }
+
+  if (message?.type === "PASTE_TEXT") {
+    applyPaste(message.text || "", { send: !!message.send }).then((result) =>
+      sendResponse?.(result)
+    );
     return true;
   }
 

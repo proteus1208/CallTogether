@@ -298,8 +298,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "SUBMIT_TRANSCRIPT": {
+        // Consume here so we never nest CONSUME inside a tab message round-trip.
+        const text = [transcript, partial].filter(Boolean).join(" ").trim();
+        transcript = "";
+        partial = "";
+        await broadcastState();
+        if (!text) {
+          sendResponse({ ok: true, sent: false, empty: true });
+          break;
+        }
         sendResponse(
-          await sendToActiveHttpTab({ type: "SUBMIT_TRANSCRIPT" })
+          await sendToActiveHttpTab({
+            type: "PASTE_TEXT",
+            text,
+            send: true,
+          })
         );
         break;
       }
