@@ -39,17 +39,38 @@ function waitForSandboxReady() {
 
 async function prepareModel() {
   await waitForSandboxReady();
-  await ensureModelBuffer();
-  // Clone buffer so we can keep a copy for reloads.
-  const copy = modelBuffer.slice(0);
-  sendToSandbox({ type: "LOAD_MODEL", modelBuffer: copy }, [copy]);
+
+  // Prefer letting the sandbox load its local model.tar.gz.
+  // Still send a buffer fallback if relative load fails inside sandbox.
+  let copy = null;
+  try {
+    await ensureModelBuffer();
+    copy = modelBuffer.slice(0);
+  } catch (error) {
+    console.warn("Could not prefetch model buffer", error);
+  }
+
+  if (copy) {
+    sendToSandbox({ type: "LOAD_MODEL", modelBuffer: copy }, [copy]);
+  } else {
+    sendToSandbox({ type: "LOAD_MODEL" });
+  }
+
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error("Speech model init timed out.")),
       120000
     );
     const onMessage = (event) => {
+      if (event.source !== sandbox.contentWindow) return;
       const data = event.data;
+      if (data?.type === "STATUS") {
+        chrome.runtime.sendMessage({
+          type: "CAPTURE_STATUS",
+          text: data.text || "Loading model…",
+        });
+        return;
+      }
       if (data?.type === "MODEL_READY") {
         clearTimeout(timeout);
         window.removeEventListener("message", onMessage);

@@ -6,49 +6,104 @@ function post(message) {
   parent.postMessage(message, "*");
 }
 
-async function loadModel(modelBuffer) {
-  if (!globalThis.Vosk?.Model) {
-    throw new Error("Vosk failed to load in sandbox.");
+function formatError(detail) {
+  if (!detail) return "Vosk model error.";
+  if (typeof detail === "string") return detail;
+  if (detail.error) return String(detail.error);
+  if (detail.message) return String(detail.message);
+  if (detail.result && detail.result !== true) return String(detail.result);
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return "Vosk model error.";
   }
-  if (voskModel) return;
+}
 
-  const blob = new Blob([modelBuffer], { type: "application/gzip" });
-  const url = URL.createObjectURL(blob);
+function loadModelFromUrl(modelUrl) {
+  return new Promise((resolve, reject) => {
+    if (!globalThis.Vosk?.Model) {
+      reject(new Error("Vosk library missing in sandbox."));
+      return;
+    }
 
-  await new Promise((resolve, reject) => {
-    const model = new globalThis.Vosk.Model(url, 0);
+    const model = new globalThis.Vosk.Model(modelUrl, 0);
     let settled = false;
+
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
-        reject(new Error("Speech model init timed out."));
+        reject(new Error("Speech model init timed out (2 min)."));
       }
     }, 120000);
 
-    model.on("load", (message) => {
-      if (settled) return;
-      if (message?.result) {
-        settled = true;
-        clearTimeout(timer);
-        voskModel = model;
-        resolve();
-      } else {
-        settled = true;
-        clearTimeout(timer);
-        reject(new Error("Speech model failed to load."));
-      }
-    });
-
-    model.on("error", (message) => {
+    const done = (ok, err) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      reject(new Error(message?.error || "Vosk model error."));
+      if (ok) {
+        voskModel = model;
+        resolve(model);
+      } else {
+        reject(new Error(err || "Speech model failed to load."));
+      }
+    };
+
+    model.on("load", (message) => {
+      if (message?.result) done(true);
+      else done(false, formatError(message) || "Model load returned false.");
+    });
+
+    model.on("error", (message) => {
+      done(false, formatError(message));
     });
   });
 }
 
+async function loadModel(modelBuffer) {
+  if (voskModel) return voskModel;
+
+  const attempts = [];
+
+  // Same-folder packaged model (best for Chrome sandbox pages).
+  attempts.push({
+    label: "sandbox/model.tar.gz",
+    run: () => loadModelFromUrl("model.tar.gz"),
+  });
+
+  // Named File blob fallback (vosk expects a .tar.gz name).
+  if (modelBuffer) {
+    attempts.push({
+      label: "blob:model.tar.gz",
+      run: () => {
+        const file = new File([modelBuffer], "model.tar.gz", {
+          type: "application/gzip",
+        });
+        return loadModelFromUrl(URL.createObjectURL(file));
+      },
+    });
+  }
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      post({ type: "STATUS", text: `Loading speech model (${attempt.label})…` });
+      return await attempt.run();
+    } catch (error) {
+      lastError = error;
+      post({
+        type: "STATUS",
+        text: `${attempt.label} failed: ${error?.message || error}`,
+      });
+    }
+  }
+
+  throw lastError || new Error("Vosk model error.");
+}
+
 function ensureRecognizer(rate) {
+  if (!voskModel) {
+    throw new Error("Speech model is not ready.");
+  }
   if (recognizer && sampleRate === rate) return;
   if (recognizer) {
     try {
@@ -99,7 +154,8 @@ window.addEventListener("message", async (event) => {
     }
 
     if (data.type === "AUDIO") {
-      const pcm = data.pcm instanceof Float32Array ? data.pcm : new Float32Array(data.pcm);
+      const pcm =
+        data.pcm instanceof Float32Array ? data.pcm : new Float32Array(data.pcm);
       acceptPcm(pcm, data.sampleRate || sampleRate);
       return;
     }
