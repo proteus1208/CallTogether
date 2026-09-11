@@ -19,8 +19,46 @@
 
       <div class="actions">
         <button id="shareBtn" type="button">Share</button>
-        <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
-        <button id="clearBtn" type="button" class="ghost">Clear</button>
+        <button
+          id="stopBtn"
+          type="button"
+          class="icon-btn secondary"
+          title="Stop"
+          aria-label="Stop"
+          disabled
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          id="clearBtn"
+          type="button"
+          class="icon-btn ghost"
+          title="Clear"
+          aria-label="Clear"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9zm-1 12h12a1 1 0 0 0 1-1V8H5v12a1 1 0 0 0 1 1z"
+            />
+          </svg>
+        </button>
+        <button
+          id="submitBtn"
+          type="button"
+          class="icon-btn"
+          title="Paste and send"
+          aria-label="Paste and send"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M3.4 20.6 21 12 3.4 3.4l.1 6.5L15 12 3.5 14.1l-.1 6.5z"
+            />
+          </svg>
+        </button>
       </div>
     </div>
 

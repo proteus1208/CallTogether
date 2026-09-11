@@ -5,8 +5,8 @@ const DEFAULT_HOTKEY = {
   altKey: true,
   ctrlKey: false,
   metaKey: false,
-  shiftKey: true,
-  key: "v",
+  shiftKey: false,
+  key: "w",
 };
 
 let transcript = "";
@@ -20,6 +20,7 @@ let dragHandleEl = null;
 let dragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+let lastEditable = null;
 
 function formatHotkey(config) {
   const parts = [];
@@ -73,7 +74,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.4`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.6`;
   hotkeyEl = shellEl.querySelector("[data-hotkey]");
 
   (document.body || document.documentElement).appendChild(shellEl);
@@ -303,19 +304,22 @@ function dispatchEnter(el) {
   el.dispatchEvent(new KeyboardEvent("keyup", opts));
 }
 
-async function pasteTranscriptAndSend() {
-  const editable = resolveEditable(document.activeElement);
+async function pasteTranscript({ send = false } = {}) {
+  const editable =
+    resolveEditable(document.activeElement) ||
+    (lastEditable && document.contains(lastEditable) ? lastEditable : null);
   if (!editable) {
     showPanel({ expand: true });
-    return;
+    return { ok: false, error: "Focus a chat input first." };
   }
 
   const response = await chrome.runtime.sendMessage({ type: "CONSUME_TRANSCRIPT" });
   const text = (response?.text || "").trim();
-  if (!text) return;
+  if (!text) return { ok: true, sent: false, empty: true };
 
   insertText(editable, text);
-  dispatchEnter(editable);
+  if (send) dispatchEnter(editable);
+  return { ok: true, sent: send };
 }
 
 async function isFloatingEnabled() {
@@ -362,6 +366,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "SUBMIT_TRANSCRIPT") {
+    pasteTranscript({ send: true }).then((result) => sendResponse?.(result));
+    return true;
+  }
+
+  if (message?.type === "PASTE_TRANSCRIPT") {
+    pasteTranscript({ send: false }).then((result) => sendResponse?.(result));
+    return true;
+  }
+
   if (message?.type === "STATE_UPDATE") {
     capturing = !!message.capturing;
     transcript = message.transcript || "";
@@ -389,12 +403,23 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 window.addEventListener(
+  "focusin",
+  (event) => {
+    if (shellEl?.contains(event.target)) return;
+    const editable = resolveEditable(event.target);
+    if (editable) lastEditable = editable;
+  },
+  true
+);
+
+window.addEventListener(
   "keydown",
   (event) => {
     if (!matchesHotkey(event, hotkey)) return;
     event.preventDefault();
     event.stopPropagation();
-    pasteTranscriptAndSend();
+    // Hotkey: clear saved transcript and paste only (no Enter).
+    pasteTranscript({ send: false });
   },
   true
 );

@@ -96,8 +96,9 @@ body {
 
 .actions {
   display: grid;
-  grid-template-columns: 1.3fr 0.85fr 0.75fr;
+  grid-template-columns: 1fr 36px 36px 36px;
   gap: 6px;
+  align-items: center;
 }
 
 button {
@@ -113,6 +114,21 @@ button {
   box-shadow: 0 4px 12px rgba(31, 157, 108, 0.2);
 }
 
+button.icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
 button.secondary {
   background: rgba(255, 255, 255, 0.18);
   color: var(--text);
@@ -125,7 +141,7 @@ button.secondary {
 button.ghost {
   background: transparent;
   color: var(--muted);
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   box-shadow: none;
 }
 
@@ -133,11 +149,4 @@ button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   box-shadow: none;
-}
-
-.hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.35;
 }

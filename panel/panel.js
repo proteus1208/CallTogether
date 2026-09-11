@@ -2,6 +2,7 @@ const statusEl = document.getElementById("status");
 const shareBtn = document.getElementById("shareBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
+const submitBtn = document.getElementById("submitBtn");
 const finalTextEl = document.getElementById("finalText");
 const partialTextEl = document.getElementById("partialText");
 const transcriptEl = document.getElementById("transcript");
@@ -15,11 +16,19 @@ function setStatus(text, isError = false) {
   statusEl.classList.toggle("error", isError);
 }
 
+function isPinnedToBottom(el, threshold = 28) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+}
+
 function renderTranscript() {
+  const stick = isPinnedToBottom(transcriptEl);
   const hasText = Boolean(localFinal.trim() || localPartial.trim());
   transcriptEl.classList.toggle("show-placeholder", !hasText);
   finalTextEl.textContent = localFinal.trim() ? `${localFinal.trim()} ` : "";
   partialTextEl.textContent = localPartial.trim();
+  if (stick) {
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
 }
 
 function setCapturingUi(capturing) {
@@ -58,6 +67,18 @@ clearBtn.addEventListener("click", async () => {
   renderTranscript();
   await chrome.runtime.sendMessage({ type: "CLEAR_TRANSCRIPT" });
   setStatus("Cleared");
+});
+
+submitBtn.addEventListener("click", async () => {
+  const result = await chrome.runtime.sendMessage({ type: "SUBMIT_TRANSCRIPT" });
+  if (!result?.ok) {
+    setStatus(result?.error || "Focus an input first", true);
+    return;
+  }
+  localFinal = "";
+  localPartial = "";
+  renderTranscript();
+  setStatus(result.sent ? "Sent" : "Pasted");
 });
 
 chrome.runtime.onMessage.addListener((message) => {

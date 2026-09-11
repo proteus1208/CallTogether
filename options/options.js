@@ -3,8 +3,8 @@ const DEFAULTS = {
     altKey: true,
     ctrlKey: false,
     metaKey: false,
-    shiftKey: true,
-    key: "v",
+    shiftKey: false,
+    key: "w",
   },
 };
 

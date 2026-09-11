@@ -3,8 +3,8 @@ const DEFAULT_SETTINGS = {
     altKey: true,
     ctrlKey: false,
     metaKey: false,
-    shiftKey: true,
-    key: "v",
+    shiftKey: false,
+    key: "w",
   },
 };
 
@@ -18,10 +18,7 @@ let captureHostWindowId = null;
 let pendingStreamId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const stored = await chrome.storage.sync.get(null);
-  if (!stored.hotkey) {
-    await chrome.storage.sync.set(DEFAULT_SETTINGS);
-  }
+  await chrome.storage.sync.set(DEFAULT_SETTINGS);
   await chrome.storage.local.set({
     floatingVisible: false,
     panelCollapsed: false,
@@ -68,7 +65,8 @@ async function sendToActiveHttpTab(message) {
   }
 
   try {
-    await chrome.tabs.sendMessage(tab.id, message);
+    const result = await chrome.tabs.sendMessage(tab.id, message);
+    return result && typeof result === "object" ? result : { ok: true };
   } catch {
     try {
       await chrome.scripting.executeScript({
@@ -79,7 +77,8 @@ async function sendToActiveHttpTab(message) {
         target: { tabId: tab.id },
         files: ["content/content.css"],
       });
-      await chrome.tabs.sendMessage(tab.id, message);
+      const result = await chrome.tabs.sendMessage(tab.id, message);
+      return result && typeof result === "object" ? result : { ok: true };
     } catch (error) {
       return {
         ok: false,
@@ -87,8 +86,6 @@ async function sendToActiveHttpTab(message) {
       };
     }
   }
-
-  return { ok: true };
 }
 
 async function hasOffscreenDocument() {
@@ -311,6 +308,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "CLEAR_TRANSCRIPT": {
         sendResponse(await clearTranscript());
+        break;
+      }
+      case "SUBMIT_TRANSCRIPT": {
+        sendResponse(
+          await sendToActiveHttpTab({ type: "SUBMIT_TRANSCRIPT" })
+        );
         break;
       }
       case "CONSUME_TRANSCRIPT": {
