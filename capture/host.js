@@ -50,18 +50,30 @@ async function readInstalledModelBuffer(code) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STT_STORE, "readonly");
     const req = tx.objectStore(STT_STORE).get(code);
-    req.onsuccess = () => {
+    req.onsuccess = async () => {
       const row = req.result;
       if (!row?.buffer) {
         resolve(null);
         return;
       }
-      const buf = row.buffer;
-      if (buf instanceof ArrayBuffer) resolve(buf);
-      else {
-        resolve(
-          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
-        );
+      try {
+        let buf = row.buffer;
+        if (buf instanceof Blob) buf = await buf.arrayBuffer();
+        else if (!(buf instanceof ArrayBuffer) && buf?.buffer) {
+          buf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+        }
+        if (!(buf instanceof ArrayBuffer) || buf.byteLength < 1000) {
+          resolve(null);
+          return;
+        }
+        const head = new Uint8Array(buf, 0, 2);
+        if (head[0] !== 0x1f || head[1] !== 0x8b) {
+          resolve(null);
+          return;
+        }
+        resolve(buf);
+      } catch (error) {
+        reject(error);
       }
     };
     req.onerror = () => reject(req.error);
@@ -79,7 +91,9 @@ async function resolveModelBuffer(language = activeSttLanguage) {
   }
   const cached = await readInstalledModelBuffer(code);
   if (!cached) {
-    throw new Error("Language model is not installed. Add it from Transcript.");
+    throw new Error(
+      "Language model missing or corrupt. Remove it and click + to download again."
+    );
   }
   return cached;
 }
@@ -150,14 +164,17 @@ async function prepareModel() {
   let copy = null;
   try {
     await ensureModelBuffer();
+    if (!(modelBuffer instanceof ArrayBuffer) || modelBuffer.byteLength < 1000) {
+      throw new Error("Speech model buffer is empty. Re-add this language.");
+    }
     copy = modelBuffer.slice(0);
   } catch (error) {
     console.warn(error);
     throw error;
   }
 
-  if (copy) sendToSandbox({ type: "LOAD_MODEL", modelBuffer: copy }, [copy]);
-  else sendToSandbox({ type: "LOAD_MODEL" });
+  // Always pass the resolved buffer — never omit it (omitting loads English only).
+  sendToSandbox({ type: "LOAD_MODEL", modelBuffer: copy }, [copy]);
 
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(

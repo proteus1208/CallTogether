@@ -211,10 +211,11 @@ async function loadModel(modelBuffer) {
     text: `Vosk=${typeof globalThis.Vosk}, buffer=${bufferBytes} bytes, href=${location.href}`,
   });
 
+  const hasParentBuffer = bufferBytes > 0;
   const attempts = [];
 
   // Prefer blob: URLs — absolute, same opaque origin as the sandbox worker.
-  if (bufferBytes > 0) {
+  if (hasParentBuffer) {
     attempts.push({
       label: "parent-buffer-blob",
       run: async () => {
@@ -226,24 +227,24 @@ async function loadModel(modelBuffer) {
         return loadModelFromUrl(url, "parent-buffer-blob");
       },
     });
+  } else {
+    // Only fall back to bundled English when no language buffer was provided.
+    attempts.push({
+      label: "local-fetch-blob",
+      run: async () => {
+        const url = await loadLocalModelAsBlobUrl();
+        return loadModelFromUrl(url, "local-fetch-blob");
+      },
+    });
+
+    attempts.push({
+      label: "absolute-extension-url",
+      run: () => {
+        const url = new URL("model.tar.gz", location.href).href;
+        return loadModelFromUrl(url, "absolute-extension-url");
+      },
+    });
   }
-
-  attempts.push({
-    label: "local-fetch-blob",
-    run: async () => {
-      const url = await loadLocalModelAsBlobUrl();
-      return loadModelFromUrl(url, "local-fetch-blob");
-    },
-  });
-
-  // Last resort: absolute extension URL (may be blocked from null-origin workers).
-  attempts.push({
-    label: "absolute-extension-url",
-    run: () => {
-      const url = new URL("model.tar.gz", location.href).href;
-      return loadModelFromUrl(url, "absolute-extension-url");
-    },
-  });
 
   const errors = [];
   for (const attempt of attempts) {
@@ -262,7 +263,11 @@ async function loadModel(modelBuffer) {
     }
   }
 
-  throw new Error(errors.join(" || ") || "Vosk model error.");
+  throw new Error(
+    hasParentBuffer
+      ? `Speech model failed to load (${errors.join(" || ")}). Re-add this language.`
+      : errors.join(" || ") || "Vosk model error."
+  );
 }
 
 function ensureRecognizer(rate) {

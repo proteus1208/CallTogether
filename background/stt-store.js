@@ -21,11 +21,19 @@ function openDb() {
 
 async function idbPut(record) {
   const db = await openDb();
+  // Store as Blob for reliable cross-context reads (SW ↔ capture host).
+  const payload = {
+    ...record,
+    buffer:
+      record.buffer instanceof Blob
+        ? record.buffer
+        : new Blob([record.buffer], { type: "application/gzip" }),
+  };
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
-    tx.objectStore(STORE).put(record);
+    tx.objectStore(STORE).put(payload);
   });
 }
 
@@ -34,7 +42,32 @@ async function idbGet(code) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
     const req = tx.objectStore(STORE).get(code);
-    req.onsuccess = () => resolve(req.result || null);
+    req.onsuccess = async () => {
+      const row = req.result || null;
+      if (!row?.buffer) {
+        resolve(null);
+        return;
+      }
+      try {
+        if (row.buffer instanceof Blob) {
+          resolve({ ...row, buffer: await row.buffer.arrayBuffer() });
+        } else if (row.buffer instanceof ArrayBuffer) {
+          resolve(row);
+        } else if (row.buffer?.buffer) {
+          resolve({
+            ...row,
+            buffer: row.buffer.buffer.slice(
+              row.buffer.byteOffset,
+              row.buffer.byteOffset + row.buffer.byteLength
+            ),
+          });
+        } else {
+          resolve(null);
+        }
+      } catch (error) {
+        reject(error);
+      }
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -74,6 +107,16 @@ export async function writeSttPrefs({ sttLanguage, sttInstalled }) {
   await chrome.storage.local.set(payload);
 }
 
+function assertGzipTar(buffer) {
+  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 1000) {
+    throw new Error("Converted speech model is empty.");
+  }
+  const head = new Uint8Array(buffer, 0, 2);
+  if (head[0] !== 0x1f || head[1] !== 0x8b) {
+    throw new Error("Converted speech model is not a valid gzip archive.");
+  }
+}
+
 export async function getModelTarGzBuffer(code) {
   const meta = sttModelByCode(code);
   if (!meta) throw new Error("Unknown speech language.");
@@ -86,13 +129,8 @@ export async function getModelTarGzBuffer(code) {
   }
 
   const cached = await idbGet(code);
-  if (cached?.buffer) {
-    return cached.buffer instanceof ArrayBuffer
-      ? cached.buffer
-      : cached.buffer.buffer.slice(
-          cached.buffer.byteOffset,
-          cached.buffer.byteOffset + cached.buffer.byteLength
-        );
+  if (cached?.buffer instanceof ArrayBuffer) {
+    return cached.buffer;
   }
   throw new Error("Language model is not installed yet. Click Add first.");
 }
@@ -124,6 +162,7 @@ export async function installSttModel(code, { onProgress } = {}) {
     const zipBuf = await response.arrayBuffer();
     onProgress?.({ phase: "convert", pct: 90 });
     const tarGz = await zipModelToTarGz(zipBuf);
+    assertGzipTar(tarGz);
     await idbPut({ code, buffer: tarGz, updatedAt: Date.now() });
     onProgress?.({ phase: "done", pct: 100 });
   } else {
@@ -149,6 +188,7 @@ export async function installSttModel(code, { onProgress } = {}) {
     }
     onProgress?.({ phase: "convert", pct: 90 });
     const tarGz = await zipModelToTarGz(zipBuf.buffer);
+    assertGzipTar(tarGz);
     await idbPut({ code, buffer: tarGz, updatedAt: Date.now() });
     onProgress?.({ phase: "done", pct: 100 });
   }

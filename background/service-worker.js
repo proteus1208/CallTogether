@@ -247,8 +247,8 @@ async function runLivePartialTranslate() {
   liveTranslateBusy = true;
   try {
     const piece = (await translateWithGoogle(source, translateTarget)).trim();
-    if (partial.trim()) {
-      translatedPartial = piece || source;
+    if (partial.trim() && piece) {
+      translatedPartial = piece;
       await broadcastState();
     }
   } catch {
@@ -292,6 +292,8 @@ async function translateWithGoogle(text, target = translateTarget) {
     url.searchParams.set("sl", "auto");
     url.searchParams.set("tl", tl);
     url.searchParams.set("dt", "t");
+    url.searchParams.set("ie", "UTF-8");
+    url.searchParams.set("oe", "UTF-8");
     url.searchParams.set("q", chunk);
 
     let data = null;
@@ -315,13 +317,15 @@ async function translateWithGoogle(text, target = translateTarget) {
       }
     }
     if (lastError) throw lastError;
-    if (!Array.isArray(data?.[0])) continue;
-    parts.push(
-      data[0]
-        .map((row) => (Array.isArray(row) ? row[0] : ""))
-        .filter(Boolean)
-        .join("")
-    );
+    if (!Array.isArray(data?.[0])) {
+      throw new Error("Unexpected translation response.");
+    }
+    const text = data[0]
+      .map((row) => (Array.isArray(row) ? row[0] : ""))
+      .filter(Boolean)
+      .join("");
+    if (!text) throw new Error("Empty translation response.");
+    parts.push(text);
   }
   return parts.join("");
 }
@@ -333,7 +337,10 @@ async function translateSpeechSession(chunk) {
 
   try {
     const piece = (await translateWithGoogle(source, translateTarget)).trim();
-    translatedSessions.push(piece || source);
+    if (!piece) {
+      throw new Error("Translation returned empty text.");
+    }
+    translatedSessions.push(piece);
     trimSessionsToWordLimit();
     // Keep last mid-session translation visible until final is ready; clear only
     // when there is no newer live speech to show.
@@ -342,6 +349,11 @@ async function translateSpeechSession(chunk) {
     }
     await broadcastState();
   } catch (error) {
+    // Keep source visible as a fallback marker so the pane is not blank, but
+    // surface the failure so it is obvious translation did not run.
+    if (translatedSessions.length < scriptSessions.length) {
+      translatedSessions.push(`[translate error] ${source}`);
+    }
     await broadcastState({
       error: error?.message || "Translation failed",
     });
@@ -373,10 +385,11 @@ async function retranslateAll() {
       const session = sources[i];
       try {
         const piece = (await translateWithGoogle(session, target)).trim();
-        next[i] = piece || session;
+        if (!piece) throw new Error("Empty translation");
+        next[i] = piece;
       } catch {
         // Keep prior text for this slot; continue the rest.
-        if (!next[i]) next[i] = session;
+        if (!next[i]) next[i] = `[translate error] ${session}`;
       }
       translatedSessions = next.slice();
       await broadcastState({

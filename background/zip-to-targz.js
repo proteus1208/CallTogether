@@ -65,24 +65,38 @@ async function readZipEntries(zipBuffer) {
 }
 
 function stripCommonRoot(files) {
-  if (!files.length) return files;
-  const first = files[0].name;
-  const slash = first.indexOf("/");
-  if (slash <= 0) return files;
-  const root = first.slice(0, slash + 1);
-  if (!files.every((f) => f.name.startsWith(root))) return files;
-  // Only strip if it looks like a model package folder, not am/conf themselves.
-  const rest = first.slice(root.length);
-  if (rest.startsWith("am/") || rest.startsWith("conf/") || rest.startsWith("graph/")) {
-    return files.map((f) => ({ name: f.name.slice(root.length), data: f.data }));
+  let result = files.slice();
+  for (;;) {
+    if (!result.length) return result;
+    const first = result[0].name;
+    const slash = first.indexOf("/");
+    if (slash <= 0) return result;
+    const root = first.slice(0, slash + 1);
+    if (
+      root === "am/" ||
+      root === "conf/" ||
+      root === "graph/" ||
+      root === "ivector/"
+    ) {
+      return result;
+    }
+    if (!result.every((f) => f.name.startsWith(root))) return result;
+    const stripped = result.map((f) => ({
+      name: f.name.slice(root.length),
+      data: f.data,
+    }));
+    if (
+      !stripped.some(
+        (f) =>
+          f.name.startsWith("am/") ||
+          f.name.startsWith("conf/") ||
+          f.name.startsWith("graph/")
+      )
+    ) {
+      return result;
+    }
+    result = stripped;
   }
-  if (
-    files.some((f) => f.name.slice(root.length).startsWith("am/")) &&
-    files.some((f) => f.name.slice(root.length).startsWith("conf/"))
-  ) {
-    return files.map((f) => ({ name: f.name.slice(root.length), data: f.data }));
-  }
-  return files;
 }
 
 function pad512(n) {
@@ -141,8 +155,28 @@ async function gzipBytes(bytes) {
 
 export async function zipModelToTarGz(zipBuffer) {
   const entries = stripCommonRoot(await readZipEntries(zipBuffer));
-  if (!entries.some((e) => e.name.startsWith("am/"))) {
-    throw new Error("Downloaded file is not a valid Vosk model.");
+  const names = new Set(entries.map((e) => e.name));
+  const required = ["am/final.mdl", "conf/mfcc.conf"];
+  const missing = required.filter((name) => !names.has(name));
+  if (missing.length) {
+    throw new Error(
+      `Downloaded model is incomplete (missing ${missing.join(", ")}).`
+    );
+  }
+  // Prefer models that include a decoder graph (browser Vosk needs it).
+  if (
+    ![...names].some(
+      (name) =>
+        name === "graph/Gr.fst" ||
+        name === "graph/HCLr.fst" ||
+        name === "graph/HCLG.fst" ||
+        name.endsWith("/Gr.fst") ||
+        name.endsWith("/HCLG.fst")
+    )
+  ) {
+    throw new Error(
+      "Downloaded model has no decoder graph (not compatible with browser Vosk)."
+    );
   }
   const tar = writeTar(entries);
   return gzipBytes(tar);
