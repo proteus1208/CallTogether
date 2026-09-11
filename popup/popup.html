@@ -10,7 +10,7 @@
     <main>
       <header>
         <h1>CallTogether</h1>
-        <p>Capture a tab’s sound → AI chat</p>
+        <p>Capture sound → AI chat</p>
       </header>
 
       <section class="state">
@@ -28,17 +28,21 @@
         <input id="floatToggle" type="checkbox" role="switch" />
       </label>
 
-      <section class="actions">
-        <button id="startBtn" type="button">Share tab audio</button>
-        <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
+      <section class="actions stacked">
+        <button id="startTabBtn" type="button">Share Chrome tab audio</button>
+        <button id="startScreenBtn" type="button" class="secondary">
+          Share screen audio (Windows apps)
+        </button>
+        <button id="stopBtn" type="button" class="ghost" disabled>Stop</button>
       </section>
 
       <button id="clearBtn" type="button" class="ghost full">Clear transcript</button>
 
       <p id="error" class="error" hidden></p>
-      <p class="hint">
-        Opens Chrome’s share picker — choose the <strong>call tab</strong> and
-        enable <strong>audio</strong>. No microphone needed.
+      <p class="hint" id="hint">
+        Chrome cannot share audio from a single <strong>Window</strong>. For Media
+        Player / Zoom / desktop apps, use <strong>Entire Screen</strong> and enable
+        <strong>Share system audio</strong>.
       </p>
 
       <footer>

@@ -80,7 +80,7 @@ chrome.runtime
   .catch(() => {});
 
 hintEl.textContent =
-  "Captures a tab’s speaker output (not your mic). Use toolbar → Share tab audio.";
+  "Desktop apps: toolbar → Share screen audio → Entire Screen + Share system audio. Chrome Window share has no audio.";
 renderTranscript();
-setStatus("Ready — share the call tab’s audio");
+setStatus("Ready — share tab or screen audio");
 setCapturingUi(false);

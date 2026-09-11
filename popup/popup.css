@@ -120,6 +120,10 @@ header p {
   gap: 8px;
 }
 
+.actions.stacked {
+  grid-template-columns: 1fr;
+}
+
 button.full {
   width: 100%;
   margin-top: 8px;

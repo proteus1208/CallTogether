@@ -1,5 +1,6 @@
 const statusLabel = document.getElementById("statusLabel");
-const startBtn = document.getElementById("startBtn");
+const startTabBtn = document.getElementById("startTabBtn");
+const startScreenBtn = document.getElementById("startScreenBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
 const errorEl = document.getElementById("error");
@@ -17,8 +18,9 @@ function showError(message) {
 }
 
 function renderState({ capturing, error, status }) {
-  statusLabel.textContent = capturing ? "Capturing tab audio" : status || "Idle";
-  startBtn.disabled = !!capturing;
+  statusLabel.textContent = capturing ? "Capturing audio" : status || "Idle";
+  startTabBtn.disabled = !!capturing;
+  startScreenBtn.disabled = !!capturing;
   stopBtn.disabled = !capturing;
   if (error) showError(error);
 }
@@ -32,19 +34,58 @@ async function refresh() {
   renderState(state || { capturing: false });
 }
 
-function chooseTabAudio() {
+function chooseDesktopAudio(sources) {
   return new Promise((resolve) => {
     try {
-      // Native Chrome picker: choose a tab/window/screen and include audio.
-      chrome.desktopCapture.chooseDesktopMedia(
-        ["tab", "window", "screen", "audio"],
-        (streamId) => resolve(streamId || null)
-      );
+      chrome.desktopCapture.chooseDesktopMedia(sources, (streamId) => {
+        resolve(streamId || null);
+      });
     } catch (error) {
       console.error(error);
       resolve(null);
     }
   });
+}
+
+async function startCapture(mode) {
+  showError("");
+  startTabBtn.disabled = true;
+  startScreenBtn.disabled = true;
+
+  // Chrome limitation: Window capture has NO audio.
+  // - tab + audio: browser call tabs
+  // - screen + audio: Windows desktop apps (Media Player, Zoom, etc.)
+  const sources =
+    mode === "screen" ? ["screen", "audio"] : ["tab", "audio"];
+
+  statusLabel.textContent =
+    mode === "screen"
+      ? "Pick Entire Screen + Share system audio…"
+      : "Pick a Chrome tab + share audio…";
+
+  const streamId = await chooseDesktopAudio(sources);
+  if (!streamId) {
+    showError(
+      mode === "screen"
+        ? "Cancelled. For Windows apps: Entire Screen → enable Share system audio."
+        : "Cancelled. Pick a Chrome tab and enable audio."
+    );
+    await refresh();
+    return;
+  }
+
+  const result = await chrome.runtime.sendMessage({
+    type: "START_TAB_CAPTURE",
+    streamId,
+  });
+
+  if (!result?.ok) {
+    showError(result?.error || "Could not capture audio.");
+    await refresh();
+    return;
+  }
+
+  window.close();
 }
 
 floatToggle.addEventListener("change", async () => {
@@ -62,30 +103,8 @@ floatToggle.addEventListener("change", async () => {
   }
 });
 
-startBtn.addEventListener("click", async () => {
-  showError("");
-  startBtn.disabled = true;
-  statusLabel.textContent = "Pick a tab…";
-
-  const streamId = await chooseTabAudio();
-  if (!streamId) {
-    showError("Share cancelled. Pick the call tab and enable audio.");
-    await refresh();
-    return;
-  }
-
-  const result = await chrome.runtime.sendMessage({
-    type: "START_TAB_CAPTURE",
-    streamId,
-  });
-
-  if (!result?.ok) {
-    showError(result?.error || "Could not capture tab audio.");
-  }
-
-  // Popup can close; capture continues in offscreen.
-  window.close();
-});
+startTabBtn.addEventListener("click", () => startCapture("tab"));
+startScreenBtn.addEventListener("click", () => startCapture("screen"));
 
 stopBtn.addEventListener("click", async () => {
   showError("");
