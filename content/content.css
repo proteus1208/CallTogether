@@ -9,14 +9,14 @@
   padding: 12px !important;
   margin: 0 !important;
   border-radius: 22px !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid #0000001f !important;
   background: rgba(255, 255, 255, 0.16) !important;
   color: #1a2330 !important;
   box-shadow:
     0 18px 48px rgba(26, 35, 48, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-  backdrop-filter: blur(14px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
+  backdrop-filter: blur(7px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(7px) saturate(1.2) !important;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif !important;
   font-size: 13px !important;
   line-height: 1.4 !important;
@@ -107,7 +107,7 @@
 
 #calltogether-float-root .ct-actions button {
   appearance: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid #0000001f !important;
   background: rgba(255, 255, 255, 0.22) !important;
   color: #1a2330 !important;
   border-radius: 12px !important;
@@ -115,8 +115,8 @@
   cursor: pointer !important;
   font-size: 12px !important;
   line-height: 1 !important;
-  backdrop-filter: blur(6px) !important;
-  -webkit-backdrop-filter: blur(6px) !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
 }
 
 #calltogether-float-root .ct-frame {
@@ -141,7 +141,7 @@
   display: inline-block !important;
   padding: 1px 5px !important;
   border-radius: 8px !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid #0000001f !important;
   background: rgba(255, 255, 255, 0.22) !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
   font-size: 11px !important;

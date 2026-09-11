@@ -6,7 +6,7 @@
   --accent: #1f9d6c;
   --accent-text: #ffffff;
   --danger: #d64545;
-  --line: rgba(255, 255, 255, 0.28);
+  --line: #0000001f;
   --glass: rgba(255, 255, 255, 0.14);
   --radius: 16px;
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
@@ -73,8 +73,8 @@ body {
   border-radius: var(--radius);
   background: var(--glass);
   border: 1px solid var(--line);
-  backdrop-filter: blur(8px) saturate(1.1);
-  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+  backdrop-filter: blur(4px) saturate(1.1);
+  -webkit-backdrop-filter: blur(4px) saturate(1.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
   white-space: pre-wrap;
   word-break: break-word;
@@ -118,8 +118,8 @@ button.secondary {
   color: var(--text);
   border: 1px solid var(--line);
   box-shadow: none;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 button.ghost {
