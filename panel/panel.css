@@ -41,6 +41,26 @@ body {
   min-height: 18px;
 }
 
+.status-row .status {
+  flex: 1;
+  min-width: 0;
+}
+
+.hotkey {
+  flex: 0 0 auto;
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.22);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .dot {
   width: 8px;
   height: 8px;

@@ -21,7 +21,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.sync.set(DEFAULT_SETTINGS);
   await chrome.storage.local.set({
     floatingVisible: false,
-    panelCollapsed: false,
   });
 });
 
@@ -174,26 +173,7 @@ async function hideCaptureHost(windowId = null) {
   if (id == null) return { ok: false, error: "No capture window." };
   captureHostWindowId = id;
 
-  // Fullscreen → minimized often fails (esp. Linux). Leave fullscreen first,
-  // then minimize; fall back to a 1×1 off-screen window so capture keeps running.
-  try {
-    await chrome.windows.update(id, {
-      state: "normal",
-      focused: false,
-      width: 320,
-      height: 200,
-    });
-  } catch {
-    // ignore
-  }
-
-  try {
-    await chrome.windows.update(id, { state: "minimized", focused: false });
-    return { ok: true };
-  } catch {
-    // fall through
-  }
-
+  // Always park off-screen first (reliable). Then minimize when the WM allows it.
   try {
     await chrome.windows.update(id, {
       state: "normal",
@@ -206,6 +186,13 @@ async function hideCaptureHost(windowId = null) {
   } catch {
     // ignore
   }
+
+  try {
+    await chrome.windows.update(id, { state: "minimized", focused: false });
+  } catch {
+    // ignore — off-screen park above is enough to keep capture alive quietly
+  }
+
   return { ok: true };
 }
 
@@ -332,6 +319,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "CAPTURE_STARTED": {
         capturing = true;
         await broadcastState();
+        await hideCaptureHost(captureHostWindowId);
+        // Some WMs ignore the first minimize right after getDisplayMedia.
+        setTimeout(() => {
+          hideCaptureHost(captureHostWindowId).catch(() => {});
+        }, 400);
         sendResponse({ ok: true });
         break;
       }

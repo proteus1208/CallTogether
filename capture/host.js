@@ -151,25 +151,36 @@ async function hideHostWindow() {
       chrome.runtime.sendMessage({ type: "HIDE_CAPTURE_HOST" }).catch(() => {});
       return;
     }
-    // Leave fullscreen first — direct minimize often fails there.
     await chrome.windows.update(win.id, {
       state: "normal",
       focused: false,
-      width: 320,
-      height: 200,
+      width: 1,
+      height: 1,
+      left: -10000,
+      top: -10000,
     });
     try {
       await chrome.windows.update(win.id, { state: "minimized", focused: false });
     } catch {
-      await chrome.windows.update(win.id, {
-        state: "normal",
-        focused: false,
-        width: 1,
-        height: 1,
-        left: -10000,
-        top: -10000,
-      });
+      // ignore
     }
+    // Retry once — share UI / fullscreen can undo the first hide.
+    setTimeout(() => {
+      chrome.windows
+        .update(win.id, { state: "minimized", focused: false })
+        .catch(() => {
+          chrome.windows
+            .update(win.id, {
+              state: "normal",
+              focused: false,
+              width: 1,
+              height: 1,
+              left: -10000,
+              top: -10000,
+            })
+            .catch(() => {});
+        });
+    }, 350);
   } catch {
     chrome.runtime.sendMessage({ type: "HIDE_CAPTURE_HOST" }).catch(() => {});
   }

@@ -22,7 +22,7 @@
   line-height: 1.4 !important;
   user-select: none !important;
   visibility: visible !important;
-  opacity: 1 !important;
+  opacity: 1 !important; 
   pointer-events: auto !important;
   top: 72px;
   right: 18px;
@@ -33,15 +33,6 @@
   max-width: none !important;
   max-height: none !important;
   box-sizing: border-box !important;
-}
-
-#calltogether-float-root.ct-collapsed {
-  height: auto !important;
-}
-
-#calltogether-float-root.ct-collapsed .ct-frame,
-#calltogether-float-root.ct-collapsed .ct-footer {
-  display: none !important;
 }
 
 #calltogether-float-root.ct-dragging {
@@ -79,44 +70,24 @@
   color: #1a2330 !important;
 }
 
-#calltogether-float-root .ct-tagline {
-  display: block !important;
-  margin-top: 1px !important;
-  color: #5b6b7c !important;
-  font-size: 10px !important;
-  font-weight: 500 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-#calltogether-float-root .ct-dot {
-  width: 8px !important;
-  height: 8px !important;
-  border-radius: 50% !important;
-  background: #9aa8b5 !important;
-  display: inline-block !important;
+#calltogether-float-root .ct-drag-grip {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  width: 18px !important;
+  height: 18px !important;
+  padding: 2px !important;
   flex: 0 0 auto !important;
+  opacity: 0.55 !important;
+  pointer-events: none !important;
 }
 
-#calltogether-float-root .ct-dot.ct-live,
-#calltogether-float-root.ct-capturing .ct-dot {
-  background: #1f9d6c !important;
-  box-shadow: 0 0 0 4px rgba(31, 157, 108, 0.18) !important;
-}
-
-#calltogether-float-root .ct-actions button {
-  appearance: none !important;
-  border: 1px solid #0000001f !important;
-  background: rgba(255, 255, 255, 0.22) !important;
-  color: #1a2330 !important;
-  border-radius: 12px !important;
-  padding: 4px 8px !important;
-  cursor: pointer !important;
-  font-size: 12px !important;
-  line-height: 1 !important;
-  backdrop-filter: blur(3px) !important;
-  -webkit-backdrop-filter: blur(3px) !important;
+#calltogether-float-root .ct-drag-grip span {
+  display: block !important;
+  height: 2px !important;
+  border-radius: 2px !important;
+  background: #5b6b7c !important;
 }
 
 #calltogether-float-root .ct-frame {
@@ -127,23 +98,4 @@
   border-radius: 16px !important;
   background: transparent !important;
   display: block !important;
-}
-
-#calltogether-float-root .ct-footer {
-  color: #5b6b7c !important;
-  font-size: 11px !important;
-  flex: 0 0 auto !important;
-  display: block !important;
-  line-height: 1.35 !important;
-}
-
-#calltogether-float-root kbd {
-  display: inline-block !important;
-  padding: 1px 5px !important;
-  border-radius: 8px !important;
-  border: 1px solid #0000001f !important;
-  background: rgba(255, 255, 255, 0.22) !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
-  font-size: 11px !important;
-  color: #1a2330 !important;
 }

@@ -6,10 +6,34 @@ const submitBtn = document.getElementById("submitBtn");
 const finalTextEl = document.getElementById("finalText");
 const partialTextEl = document.getElementById("partialText");
 const transcriptEl = document.getElementById("transcript");
+const hotkeyBadge = document.getElementById("hotkeyBadge");
 const dotEl = document.querySelector("[data-dot]");
+
+const DEFAULT_HOTKEY = {
+  altKey: true,
+  ctrlKey: false,
+  metaKey: false,
+  shiftKey: false,
+  key: "w",
+};
 
 let localFinal = "";
 let localPartial = "";
+
+function formatHotkey(config) {
+  const parts = [];
+  if (config.ctrlKey) parts.push("Ctrl");
+  if (config.altKey) parts.push("Alt");
+  if (config.shiftKey) parts.push("Shift");
+  if (config.metaKey) parts.push("Meta");
+  parts.push((config.key || "").toUpperCase());
+  return parts.join("+");
+}
+
+function setHotkeyBadge(config) {
+  if (!hotkeyBadge) return;
+  hotkeyBadge.textContent = formatHotkey(config || DEFAULT_HOTKEY);
+}
 
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
@@ -105,6 +129,17 @@ chrome.runtime
   })
   .catch(() => {});
 
+chrome.storage.sync.get(["hotkey"], (stored) => {
+  setHotkeyBadge(stored?.hotkey || DEFAULT_HOTKEY);
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && changes.hotkey) {
+    setHotkeyBadge(changes.hotkey.newValue || DEFAULT_HOTKEY);
+  }
+});
+
 renderTranscript();
 setStatus("Ready");
 setCapturingUi(false);
+setHotkeyBadge(DEFAULT_HOTKEY);

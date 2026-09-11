@@ -15,22 +15,11 @@ let capturing = false;
 let hotkey = { ...DEFAULT_HOTKEY };
 let shellEl = null;
 let iframeEl = null;
-let hotkeyEl = null;
 let dragHandleEl = null;
 let dragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 let lastEditable = null;
-
-function formatHotkey(config) {
-  const parts = [];
-  if (config.ctrlKey) parts.push("Ctrl");
-  if (config.altKey) parts.push("Alt");
-  if (config.shiftKey) parts.push("Shift");
-  if (config.metaKey) parts.push("Meta");
-  parts.push((config.key || "").toUpperCase());
-  return parts.join("+");
-}
 
 function clampToViewport(left, top, width, height) {
   const maxLeft = Math.max(8, window.innerWidth - width - 8);
@@ -51,15 +40,12 @@ function ensureShell() {
   shellEl.id = SHELL_ID;
   shellEl.setAttribute("data-calltogether", "1");
   shellEl.innerHTML = `
-    <div class="ct-header" data-drag-handle>
+    <div class="ct-header" data-drag-handle title="Drag to move">
       <div class="ct-title">
-        <span class="ct-dot" data-dot></span>
-        <div>
-          <strong>CallTogether</strong>
-        </div>
+        <strong>CallTogether</strong>
       </div>
-      <div class="ct-actions">
-        <button type="button" data-collapse title="Collapse">–</button>
+      <div class="ct-drag-grip" aria-hidden="true">
+        <span></span><span></span><span></span>
       </div>
     </div>
     <iframe
@@ -68,14 +54,10 @@ function ensureShell() {
       title="CallTogether panel"
       allow="microphone *"
     ></iframe>
-    <div class="ct-footer">
-      <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> paste
-    </div>
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.6`;
-  hotkeyEl = shellEl.querySelector("[data-hotkey]");
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.7`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -85,13 +67,6 @@ function ensureShell() {
   window.addEventListener("pointermove", onDragMove, { passive: true });
   window.addEventListener("pointerup", onDragEnd);
   window.addEventListener("pointercancel", onDragEnd);
-
-  shellEl.querySelector("[data-collapse]").addEventListener("click", () => {
-    shellEl.classList.toggle("ct-collapsed");
-    chrome.storage.local.set({
-      panelCollapsed: shellEl.classList.contains("ct-collapsed"),
-    });
-  });
 
   restorePosition();
   return shellEl;
@@ -111,13 +86,11 @@ function setShellPosition(left, top, right = "auto") {
 }
 
 function restorePosition() {
-  chrome.storage.local.get(["panelLeft", "panelTop", "panelCollapsed"], (result) => {
+  chrome.storage.local.get(["panelLeft", "panelTop"], (result) => {
     if (!shellEl) return;
 
     const width = shellEl.offsetWidth || 400;
-    const height = shellEl.classList.contains("ct-collapsed")
-      ? 52
-      : shellEl.offsetHeight || 390;
+    const height = shellEl.offsetHeight || 390;
 
     if (typeof result.panelLeft === "number" && typeof result.panelTop === "number") {
       const pos = clampToViewport(result.panelLeft, result.panelTop, width, height);
@@ -125,10 +98,6 @@ function restorePosition() {
     } else {
       const defaultLeft = Math.max(8, window.innerWidth - width - 18);
       setShellPosition(defaultLeft, 72, "auto");
-    }
-
-    if (result.panelCollapsed) {
-      shellEl.classList.add("ct-collapsed");
     }
   });
 }
@@ -176,16 +145,12 @@ function onDragEnd(event) {
   });
 }
 
-function showPanel({ expand = true } = {}) {
+function showPanel() {
   ensureShell();
   shellEl.style.setProperty("display", "flex", "important");
   shellEl.style.setProperty("visibility", "visible", "important");
   shellEl.style.setProperty("opacity", "1", "important");
   shellEl.hidden = false;
-  if (expand) {
-    shellEl.classList.remove("ct-collapsed");
-    chrome.storage.local.set({ panelCollapsed: false });
-  }
   updateShellChrome();
 }
 
@@ -196,10 +161,7 @@ function hidePanel() {
 
 function updateShellChrome() {
   if (!shellEl) return;
-  const dot = shellEl.querySelector("[data-dot]");
   shellEl.classList.toggle("ct-capturing", capturing);
-  dot?.classList.toggle("ct-live", capturing);
-  if (hotkeyEl) hotkeyEl.textContent = formatHotkey(hotkey);
 }
 
 function matchesHotkey(event, config) {
