@@ -17,6 +17,8 @@ let starting = false;
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
   statusEl.classList.toggle("error", isError);
+  // Don't broadcast cancel/errors that wipe UI while user is retrying.
+  if (isError && /cancel/i.test(text)) return;
   chrome.runtime
     .sendMessage({
       type: isError ? "CAPTURE_ERROR" : "CAPTURE_STATUS",
@@ -106,8 +108,29 @@ async function prepareModel() {
   });
 }
 
-async function pickSoundStream() {
-  // Top-level extension page — safe. Nested page iframes can crash Chrome.
+async function getStreamFromDesktopId(streamId) {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      mandatory: {
+        chromeMediaSource: "desktop",
+        chromeMediaSourceId: streamId,
+      },
+    },
+    video: {
+      mandatory: {
+        chromeMediaSource: "desktop",
+        chromeMediaSourceId: streamId,
+        maxWidth: 16,
+        maxHeight: 16,
+      },
+    },
+  });
+  stream.getVideoTracks().forEach((track) => track.stop());
+  return stream;
+}
+
+async function pickSoundStreamWithGesture() {
+  // Must run from a real click in THIS window.
   return navigator.mediaDevices.getDisplayMedia({
     video: true,
     audio: {
@@ -169,22 +192,40 @@ async function startAudioPipeline(stream) {
   chrome.runtime.sendMessage({ type: "CAPTURE_STARTED" }).catch(() => {});
 }
 
-async function startCapture() {
+async function startCapture({ streamId = null } = {}) {
   if (starting || mediaStream) return;
   starting = true;
   shareBtn.disabled = true;
 
   try {
-    setStatus("Choose what to share…");
-    // IMPORTANT: open the picker BEFORE loading Vosk/model (prevents freezes).
-    const stream = await pickSoundStream();
+    let stream;
+    if (streamId) {
+      setStatus("Connecting to shared audio…");
+      try {
+        stream = await getStreamFromDesktopId(streamId);
+      } catch (error) {
+        console.warn("[CallTogether] streamId attach failed", error);
+        // Stream IDs from another frame sometimes fail — fall back to a
+        // clickable getDisplayMedia in this top-level window.
+        shareBtn.disabled = false;
+        setStatus(
+          "Click Choose sound source in this window to open the share dialog.",
+          true
+        );
+        starting = false;
+        return;
+      }
+    } else {
+      setStatus("Choose what to share…");
+      stream = await pickSoundStreamWithGesture();
+    }
     await startAudioPipeline(stream);
   } catch (error) {
     shareBtn.disabled = false;
     stopBtn.disabled = true;
     const message =
       error?.name === "NotAllowedError"
-        ? "Share cancelled."
+        ? "Share cancelled — click Choose sound source again."
         : error?.message || "Could not start capture.";
     setStatus(message, true);
   } finally {
@@ -283,20 +324,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     stopCapture(false).then(() => sendResponse({ ok: true }));
     return true;
   }
-  if (message?.type === "HOST_AUTO_START") {
-    startCapture().then(() => sendResponse({ ok: true }));
+  if (message?.type === "HOST_START_WITH_STREAM_ID") {
+    startCapture({ streamId: message.streamId }).then(() =>
+      sendResponse({ ok: true })
+    );
     return true;
   }
 });
 
-setStatus("Click Choose sound source");
-// Auto-open picker shortly after this top-level page loads (stable, unlike panel iframe).
-window.addEventListener(
-  "load",
-  () => {
-    setTimeout(() => {
-      if (!mediaStream && !starting) startCapture();
-    }, 200);
-  },
-  { once: true }
-);
+(async () => {
+  setStatus("Click Choose sound source");
+})();

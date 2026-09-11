@@ -51,7 +51,7 @@ chooseSourceBtn.addEventListener("click", async () => {
   showError("");
   const result = await chrome.runtime.sendMessage({ type: "OPEN_CAPTURE_HOST" });
   if (!result?.ok) {
-    showError(result?.error || "Could not open sound picker.");
+    showError(result?.error || "Could not open capture window.");
     return;
   }
   window.close();

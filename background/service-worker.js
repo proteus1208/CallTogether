@@ -15,6 +15,7 @@ let capturing = false;
 let transcript = "";
 let partial = "";
 let captureHostWindowId = null;
+let pendingStreamId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.sync.get(null);
@@ -134,14 +135,23 @@ async function startCaptureWithStreamId(streamId) {
   return { ok: true };
 }
 
-async function openCaptureHost() {
+async function openCaptureHost(streamId = null) {
+  if (streamId) pendingStreamId = streamId;
+
   if (captureHostWindowId != null) {
     try {
       await chrome.windows.update(captureHostWindowId, { focused: true });
-      try {
-        await chrome.runtime.sendMessage({ type: "HOST_AUTO_START" });
-      } catch {
-        // host may still be loading
+      if (pendingStreamId) {
+        const id = pendingStreamId;
+        pendingStreamId = null;
+        try {
+          await chrome.runtime.sendMessage({
+            type: "HOST_START_WITH_STREAM_ID",
+            streamId: id,
+          });
+        } catch {
+          pendingStreamId = id;
+        }
       }
       return { ok: true };
     } catch {
@@ -152,8 +162,8 @@ async function openCaptureHost() {
   const win = await chrome.windows.create({
     url: chrome.runtime.getURL(CAPTURE_HOST_URL),
     type: "popup",
-    width: 380,
-    height: 240,
+    width: 400,
+    height: 260,
     focused: true,
   });
   captureHostWindowId = win.id ?? null;
@@ -232,13 +242,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         break;
       }
       case "OPEN_CAPTURE_HOST": {
-        sendResponse(await openCaptureHost());
+        sendResponse(await openCaptureHost(message.streamId || null));
+        break;
+      }
+      case "TAKE_PENDING_STREAM_ID": {
+        const id = pendingStreamId;
+        pendingStreamId = null;
+        sendResponse({ streamId: id });
         break;
       }
       case "PANEL_START_CAPTURE": {
         await chrome.storage.local.set({ floatingVisible: true });
         await sendToActiveHttpTab({ type: "SHOW_PANEL" });
-        sendResponse(await openCaptureHost());
+        sendResponse(await openCaptureHost(message.streamId || null));
         break;
       }
       case "STOP_CAPTURE": {

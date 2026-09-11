@@ -3,23 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CallTogether — Sound source</title>
+    <title>CallTogether — Choose sound source</title>
     <link rel="stylesheet" href="host.css" />
   </head>
   <body>
     <main>
       <h1>Choose sound source</h1>
       <p class="sub">
-        Pick a Chrome tab or entire screen and enable audio. Keep this small
-        window open while capturing.
+        Click the button below. Chrome’s share dialog will appear — pick a tab
+        or entire screen and enable audio. Keep this window open while capturing.
       </p>
-      <p id="status" class="status">Starting…</p>
+      <p id="status" class="status">Ready</p>
       <div class="actions">
         <button id="shareBtn" type="button">Choose sound source</button>
         <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
       </div>
     </main>
-    <!-- Sandbox is created only after a stream is acquired (avoids crash on open). -->
     <script type="module" src="host.js"></script>
   </body>
 </html>

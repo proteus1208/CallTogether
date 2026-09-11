@@ -30,16 +30,19 @@ function setCapturingUi(capturing) {
 }
 
 shareBtn.addEventListener("click", async () => {
-  setStatus("Opening sound picker…");
+  setStatus("Opening capture window…");
   shareBtn.disabled = true;
   try {
     const result = await chrome.runtime.sendMessage({ type: "OPEN_CAPTURE_HOST" });
     if (!result?.ok) {
-      setStatus(result?.error || "Could not open sound picker.", true);
+      setStatus(result?.error || "Could not open capture window.", true);
       setCapturingUi(false);
+      return;
     }
+    setStatus("In the capture window, click Choose sound source.");
+    shareBtn.disabled = false;
   } catch (error) {
-    setStatus(error?.message || "Could not open sound picker.", true);
+    setStatus(error?.message || "Could not open capture window.", true);
     setCapturingUi(false);
   }
 });
@@ -83,7 +86,7 @@ chrome.runtime
   .catch(() => {});
 
 hintEl.textContent =
-  "Opens Chrome’s share dialog · enable audio · hotkey pastes into AI chat";
+  "A small capture window opens — click Choose sound source there";
 renderTranscript();
 setStatus("Ready — choose a sound source");
 setCapturingUi(false);
