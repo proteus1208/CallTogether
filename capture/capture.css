@@ -1,0 +1,88 @@
+:root {
+  color-scheme: light;
+  --bg: #0f1c17;
+  --panel: #173028;
+  --text: #e7f3ec;
+  --muted: #9bb5a8;
+  --accent: #3ecf8e;
+  --accent-text: #062216;
+  --danger: #ff7b72;
+  --border: rgba(231, 243, 236, 0.12);
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(62, 207, 142, 0.18), transparent 55%),
+    linear-gradient(160deg, #0b1511, var(--bg));
+  color: var(--text);
+}
+
+.panel {
+  padding: 20px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+
+.lead {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+ol {
+  margin: 0 0 14px;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.status {
+  min-height: 1.3em;
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

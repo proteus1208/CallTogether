@@ -1,0 +1,111 @@
+#calltogether-float-root {
+  position: fixed;
+  top: 72px;
+  right: 18px;
+  z-index: 2147483646;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 28, 23, 0.94);
+  color: #e7f3ec;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: none;
+}
+
+#calltogether-float-root.ct-collapsed .ct-body,
+#calltogether-float-root.ct-collapsed .ct-footer {
+  display: none;
+}
+
+#calltogether-float-root .ct-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: grab;
+}
+
+#calltogether-float-root .ct-header:active {
+  cursor: grabbing;
+}
+
+#calltogether-float-root .ct-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+#calltogether-float-root .ct-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7f8f87;
+}
+
+#calltogether-float-root .ct-dot.ct-live {
+  background: #3ecf8e;
+  box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.18);
+}
+
+#calltogether-float-root .ct-actions {
+  display: flex;
+  gap: 6px;
+}
+
+#calltogether-float-root .ct-actions button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#calltogether-float-root .ct-status {
+  color: #9bb5a8;
+  font-size: 12px;
+}
+
+#calltogether-float-root.ct-capturing .ct-status {
+  color: #3ecf8e;
+}
+
+#calltogether-float-root .ct-body {
+  overflow: auto;
+  max-height: 240px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  min-height: 72px;
+}
+
+#calltogether-float-root .ct-footer {
+  color: #9bb5a8;
+  font-size: 11px;
+}
+
+#calltogether-float-root kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #e7f3ec;
+}

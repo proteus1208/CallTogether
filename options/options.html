@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CallTogether Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>CallTogether Settings</h1>
+        <p>
+          Configure the paste hotkey and Whisper transcription. Initial AI
+          prompts and CV upload stay manual in the AI platform.
+        </p>
+      </header>
+
+      <form id="settingsForm">
+        <section>
+          <h2>Paste hotkey</h2>
+          <p class="hint">
+            Focus an input / textarea / chat composer on the AI site, then press
+            this shortcut to paste the stored transcript and send Enter.
+          </p>
+          <label class="hotkey-box">
+            <span>Click and press a shortcut</span>
+            <input
+              id="hotkeyInput"
+              type="text"
+              readonly
+              placeholder="Alt+Shift+V"
+            />
+          </label>
+          <div class="mods">
+            <label><input id="ctrlKey" type="checkbox" /> Ctrl</label>
+            <label><input id="altKey" type="checkbox" /> Alt</label>
+            <label><input id="shiftKey" type="checkbox" /> Shift</label>
+            <label><input id="metaKey" type="checkbox" /> Meta</label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Transcription</h2>
+          <label>
+            OpenAI API key
+            <input
+              id="openaiApiKey"
+              type="password"
+              autocomplete="off"
+              placeholder="sk-..."
+            />
+          </label>
+          <label>
+            Whisper model
+            <select id="whisperModel">
+              <option value="whisper-1">whisper-1</option>
+              <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option>
+              <option value="gpt-4o-transcribe">gpt-4o-transcribe</option>
+            </select>
+          </label>
+          <label>
+            Chunk length (seconds)
+            <input id="chunkSeconds" type="number" min="2" max="20" step="1" />
+          </label>
+        </section>
+
+        <div class="actions">
+          <button type="submit">Save settings</button>
+          <span id="saveStatus" aria-live="polite"></span>
+        </div>
+      </form>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

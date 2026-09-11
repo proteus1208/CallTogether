@@ -1,0 +1,120 @@
+:root {
+  color-scheme: light;
+  --bg: #0e1914;
+  --panel: rgba(255, 255, 255, 0.03);
+  --text: #e8f5ee;
+  --muted: #9bb5a8;
+  --accent: #3ecf8e;
+  --accent-text: #062216;
+  --line: rgba(255, 255, 255, 0.12);
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 0% 0%, rgba(62, 207, 142, 0.16), transparent 50%),
+    linear-gradient(160deg, #0a1410, var(--bg));
+  color: var(--text);
+}
+
+main {
+  width: min(720px, calc(100% - 32px));
+  margin: 32px auto;
+}
+
+header h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+}
+
+header p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+section {
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+section h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 0.92rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.hotkey-box input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+.mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.mods label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+#saveStatus {
+  color: var(--accent);
+  font-size: 0.9rem;
+}

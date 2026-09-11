@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CallTogether Capture</title>
+    <link rel="stylesheet" href="capture.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <h1>CallTogether</h1>
+      <p class="lead">
+        Share a tab or screen <strong>with audio</strong> so the extension can
+        transcribe the call output.
+      </p>
+      <ol>
+        <li>Click <strong>Share audio</strong></li>
+        <li>Pick the call tab/window (or entire screen)</li>
+        <li>Enable <strong>Share tab audio</strong> / <strong>Share system audio</strong></li>
+        <li>Keep this window open while you work in the AI platform</li>
+      </ol>
+      <p id="status" class="status">Ready</p>
+      <div class="actions">
+        <button id="shareBtn" type="button">Share audio</button>
+        <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
+      </div>
+    </main>
+    <script type="module" src="capture.js"></script>
+  </body>
+</html>
