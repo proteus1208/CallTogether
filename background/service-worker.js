@@ -2,6 +2,7 @@ import {
   readSttPrefs,
   writeSttPrefs,
   installSttModel,
+  uninstallSttModel,
   getModelTarGzBuffer,
   listSttCatalog,
   defaultInstalledCodes,
@@ -490,6 +491,30 @@ async function notifyCaptureHostReloadModel() {
   }
 }
 
+/** Drop a bad downloaded model so the UI shows + again. */
+async function purgeCorruptSttModel(code, errorMessage) {
+  const target = String(code || sttLanguage || "").trim();
+  if (!target || target === "en") {
+    await broadcastState({
+      error: errorMessage || "Language model missing or corrupt.",
+    });
+    return { purged: false, sttLanguage, sttInstalled };
+  }
+
+  const prefs = await uninstallSttModel(target);
+  sttInstalled = prefs.sttInstalled;
+  sttLanguage = prefs.sttLanguage || "en";
+  const name = sttModelByCode(target)?.name || target;
+  await broadcastState({
+    error:
+      errorMessage ||
+      `${name} model missing or corrupt. Click + to download again.`,
+    status: `Speech language: English`,
+  });
+  await notifyCaptureHostReloadModel();
+  return { purged: true, sttLanguage, sttInstalled };
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.translateTarget?.newValue) {
     translateTarget = changes.translateTarget.newValue;
@@ -960,6 +985,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: true, sttLanguage });
         break;
       }
+      case "STT_MODEL_CORRUPT": {
+        const result = await purgeCorruptSttModel(
+          message.code,
+          message.error ||
+            "Language model missing or corrupt. Click + to download again."
+        );
+        sendResponse({ ok: true, ...result });
+        break;
+      }
       case "GET_STT_MODEL_BUFFER": {
         try {
           const code = String(message.code || sttLanguage || "en").trim();
@@ -1072,7 +1106,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         partial = "";
         stopLiveTranslate();
-        await broadcastState({ error: message.error || "Capture failed." });
+        const errText = String(message.error || "Capture failed.");
+        if (
+          /missing or corrupt|needs reinstall|Re-add this language|failed to load/i.test(
+            errText
+          ) &&
+          sttLanguage !== "en"
+        ) {
+          await purgeCorruptSttModel(sttLanguage, errText);
+        } else {
+          await broadcastState({ error: errText });
+        }
         sendResponse({ ok: true });
         break;
       }

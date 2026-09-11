@@ -85,6 +85,32 @@ async function readInstalledModelBuffer(code) {
   });
 }
 
+function isCorruptModelError(error) {
+  const msg = error?.message || String(error || "");
+  return /missing or corrupt|needs reinstall|Re-add this language|failed to load|buffer is empty/i.test(
+    msg
+  );
+}
+
+async function reportCorruptModel(error) {
+  if (!isCorruptModelError(error)) return false;
+  if (!activeSttLanguage || activeSttLanguage === "en") return false;
+  const msg = error?.message || String(error);
+  try {
+    await chrome.runtime.sendMessage({
+      type: "STT_MODEL_CORRUPT",
+      code: activeSttLanguage,
+      error: msg,
+    });
+  } catch {
+    // ignore
+  }
+  activeSttLanguage = "en";
+  modelBuffer = null;
+  modelReady = false;
+  return true;
+}
+
 async function resolveModelBuffer(language = activeSttLanguage) {
   const code = language || "en";
   if (code === "en") {
@@ -218,7 +244,16 @@ async function reloadSttModel(language) {
     await prepareModel();
     setStatus(mediaStream ? "Capturing…" : "Speech language ready.");
   } catch (error) {
-    setStatus(error?.message || "Could not load speech language", true);
+    const msg = error?.message || "Could not load speech language";
+    const purged = await reportCorruptModel(error);
+    statusEl.textContent = msg;
+    statusEl.classList.toggle("error", true);
+    // Avoid CAPTURE_ERROR here — that would stop an active share.
+    if (!purged) {
+      chrome.runtime
+        .sendMessage({ type: "CAPTURE_STATUS", text: msg })
+        .catch(() => {});
+    }
   }
 }
 
@@ -387,6 +422,7 @@ async function startCapture({ streamId = null } = {}) {
       error?.name === "NotAllowedError"
         ? "Share cancelled — click Choose sound source again."
         : error?.message || "Could not start capture.";
+    await reportCorruptModel(error);
     setStatus(message, true);
   } finally {
     starting = false;
@@ -470,10 +506,14 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (data.type === "ERROR") {
-    setStatus(data.error || "Transcription error", true);
-    chrome.runtime.sendMessage({
-      type: "CAPTURE_ERROR",
-      error: data.error || "Transcription error",
+    const err = data.error || "Transcription error";
+    reportCorruptModel(new Error(err)).then((purged) => {
+      if (purged) {
+        statusEl.textContent = err;
+        statusEl.classList.add("error");
+        return;
+      }
+      setStatus(err, true);
     });
   }
 });

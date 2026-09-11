@@ -345,17 +345,24 @@ function applySttState(state = {}) {
   if (typeof state.sttInstallProgress === "number") {
     sttInstallProgress = state.sttInstallProgress;
   }
-  // Keep active flags in sync for local fallback lists.
+  // Keep active / installed flags in sync with background catalog.
   sttCatalog = sttCatalog.map((item) => ({
     ...item,
     active: item.code === sttLanguage,
-    installed: item.installed || item.bundled || item.code === "en",
+    installed: Boolean(
+      item.code === "en" || item.bundled || item.installed
+    ),
   }));
+  if (sttPendingAdd) {
+    const pending = sttCatalog.find((item) => item.code === sttPendingAdd);
+    if (pending?.installed) sttPendingAdd = null;
+  }
   setSttLabel(sttLanguage, sttCatalog);
   setSttUiBusy(Boolean(sttInstallBusy));
   setSttProgress(sttInstallBusy ? sttInstallProgress : 0, {
     visible: Boolean(sttInstallBusy),
   });
+  // Always refresh list so + reappears after a corrupt-model purge.
   if (sttMenuOpen) renderSttList(sttSearch?.value || "");
 }
 
