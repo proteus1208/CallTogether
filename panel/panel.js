@@ -30,14 +30,16 @@ function setCapturingUi(capturing) {
 }
 
 shareBtn.addEventListener("click", async () => {
-  setStatus("Open the toolbar popup to share screen or tab audio.");
+  setStatus("Opening sound source picker…");
   try {
-    await chrome.action.openPopup();
+    const result = await chrome.runtime.sendMessage({
+      type: "OPEN_SCREEN_CAPTURE_SESSION",
+    });
+    if (!result?.ok) {
+      setStatus(result?.error || "Could not open sound source picker.", true);
+    }
   } catch {
-    setStatus(
-      "Click the CallTogether icon → Desktop/app audio or Chrome tab audio.",
-      true
-    );
+    setStatus("Click the CallTogether icon → Choose sound source.", true);
   }
 });
 
@@ -80,7 +82,7 @@ chrome.runtime
   .catch(() => {});
 
 hintEl.textContent =
-  "Local speech · no microphone · hotkey pastes into the focused AI chat";
+  "One share dialog · enable audio · hotkey pastes into AI chat";
 renderTranscript();
-setStatus("Ready — start capture from the toolbar popup");
+setStatus("Ready — choose a sound source");
 setCapturingUi(false);

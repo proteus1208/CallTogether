@@ -98,11 +98,10 @@ async function startScreenShare() {
       await prepareModel();
     }
 
-    setStatus("Pick Entire Screen and enable Share system audio…");
+    setStatus("Opening Chrome share dialog…");
+    // Full picker: Chrome Tab / Window / Entire Screen (like the system dialog).
     mediaStream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        displaySurface: "monitor",
-      },
+      video: true,
       audio: {
         echoCancellation: false,
         noiseSuppression: false,
@@ -128,7 +127,7 @@ async function startScreenShare() {
     mediaStream = null;
     shareBtn.disabled = false;
     setStatus(
-      "No audio track. Choose Entire Screen and enable Share system audio (not Window).",
+      "No audio track. In Chrome’s dialog, enable tab/system audio (Window share has no sound).",
       true
     );
     return;
@@ -164,7 +163,8 @@ async function startScreenShare() {
   silentGain.connect(audioContext.destination);
 
   stopBtn.disabled = false;
-  setStatus("Capturing system/screen audio… keep this window open.");
+  stopBtn.hidden = false;
+  setStatus("Capturing audio… keep this window open.");
   chrome.runtime.sendMessage({ type: "CAPTURE_STARTED" }).catch(() => {});
 }
 
@@ -209,6 +209,7 @@ async function stopCapture(ended = false) {
   sendToSandbox({ type: "RESET" });
   shareBtn.disabled = false;
   stopBtn.disabled = true;
+  stopBtn.hidden = true;
   setStatus(ended ? "Share ended." : "Stopped.");
   chrome.runtime.sendMessage({ type: "CAPTURE_ENDED" }).catch(() => {});
 }
@@ -261,4 +262,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-setStatus("Click Choose screen… then Entire Screen + Share system audio");
+setStatus("Click Choose sound source to open Chrome’s share dialog");
+
+// Auto-open the native picker once so it feels like the system alert.
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    if (!mediaStream && !shareBtn.disabled) startScreenShare();
+  }, 250);
+});

@@ -12,8 +12,8 @@
         <p class="brand">CallTogether</p>
         <h1>Turn call audio into AI answers</h1>
         <p class="lede">
-          Capture what you hear on a call, get a live transcript, paste it into
-          ChatGPT / Claude / Gemini with one hotkey.
+          Choose a sound source once. Chrome’s share dialog lets you pick a tab,
+          window, or entire screen — then we transcribe live.
         </p>
       </header>
 
@@ -33,14 +33,9 @@
       </label>
 
       <section class="capture-block">
-        <h2>Start capture</h2>
-        <button id="startScreenBtn" type="button">
-          <span class="btn-title">Desktop / app audio</span>
-          <span class="btn-sub">Zoom, Meet app, Media Player…</span>
-        </button>
-        <button id="startTabBtn" type="button" class="secondary">
-          <span class="btn-title">Chrome tab audio</span>
-          <span class="btn-sub">Browser call in another tab</span>
+        <button id="chooseSourceBtn" type="button">
+          <span class="btn-title">Choose sound source</span>
+          <span class="btn-sub">Opens Chrome’s share dialog</span>
         </button>
         <button id="stopBtn" type="button" class="ghost" disabled>Stop capture</button>
       </section>
@@ -49,15 +44,10 @@
 
       <p id="error" class="error" hidden></p>
 
-      <ol class="steps">
-        <li>Share audio (screen or tab) with sound enabled</li>
-        <li>Watch the floating transcript update live</li>
-        <li>Focus the AI chat · press the paste hotkey</li>
-      </ol>
-
       <p class="hint">
-        Chrome cannot share audio from a single app <em>Window</em>. For desktop
-        apps choose <strong>Entire Screen</strong> + <strong>Share system audio</strong>.
+        In the dialog, enable audio. For desktop apps use
+        <strong>Entire Screen</strong> + <strong>Share system audio</strong>
+        (a single Window has no audio in Chrome).
       </p>
 
       <footer>

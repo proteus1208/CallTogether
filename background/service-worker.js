@@ -147,8 +147,8 @@ async function openScreenCaptureSession() {
   const win = await chrome.windows.create({
     url: chrome.runtime.getURL(SCREEN_SESSION_URL),
     type: "popup",
-    width: 460,
-    height: 320,
+    width: 560,
+    height: 360,
     focused: true,
   });
   screenSessionWindowId = win.id ?? null;

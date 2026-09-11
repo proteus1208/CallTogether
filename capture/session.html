@@ -3,25 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CallTogether — Screen audio</title>
+    <title>Choose what to share with CallTogether</title>
     <link rel="stylesheet" href="session.css" />
   </head>
   <body>
-    <main>
-      <p class="brand">CallTogether</p>
-      <h1>Share screen audio</h1>
-      <p class="lede">
-        Capture desktop app sound (Zoom, Meet app, Media Player…). Chrome cannot
-        include audio from a single app <strong>Window</strong> — pick
-        <strong>Entire Screen</strong> and enable
-        <strong>Share system audio</strong>.
+    <main class="share-dialog" role="dialog" aria-labelledby="shareTitle">
+      <h1 id="shareTitle">Choose what to share with CallTogether</h1>
+      <p class="subtitle">
+        CallTogether will capture the sound from what you share (enable audio in
+        the next dialog).
       </p>
+
       <p id="status" class="status">Ready</p>
-      <div class="actions">
-        <button id="shareBtn" type="button">Choose screen…</button>
-        <button id="stopBtn" type="button" class="secondary" disabled>Stop</button>
-      </div>
-      <p class="hint">Keep this window open while capturing. Close it or press Stop when done.</p>
+
+      <button id="shareBtn" type="button" class="primary">
+        Choose sound source
+      </button>
+      <button id="stopBtn" type="button" class="secondary" disabled hidden>
+        Stop capture
+      </button>
+
+      <p class="hint">
+        Chrome’s picker opens next — pick a Chrome tab, window, or entire screen
+        and turn audio on. Keep this window open while capturing.
+      </p>
     </main>
 
     <iframe

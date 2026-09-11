@@ -1,6 +1,5 @@
 const statusLabel = document.getElementById("statusLabel");
-const startTabBtn = document.getElementById("startTabBtn");
-const startScreenBtn = document.getElementById("startScreenBtn");
+const chooseSourceBtn = document.getElementById("chooseSourceBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById("clearBtn");
 const errorEl = document.getElementById("error");
@@ -19,8 +18,7 @@ function showError(message) {
 
 function renderState({ capturing, error, status }) {
   statusLabel.textContent = capturing ? "Capturing audio" : status || "Idle";
-  startTabBtn.disabled = !!capturing;
-  startScreenBtn.disabled = !!capturing;
+  chooseSourceBtn.disabled = !!capturing;
   stopBtn.disabled = !capturing;
   if (error) showError(error);
 }
@@ -32,20 +30,6 @@ async function refresh() {
   ]);
   floatToggle.checked = local.floatingVisible !== false;
   renderState(state || { capturing: false });
-}
-
-function chooseTabAudio() {
-  return new Promise((resolve) => {
-    try {
-      chrome.desktopCapture.chooseDesktopMedia(
-        ["tab", "audio"],
-        (streamId) => resolve(streamId || null)
-      );
-    } catch (error) {
-      console.error(error);
-      resolve(null);
-    }
-  });
 }
 
 floatToggle.addEventListener("change", async () => {
@@ -63,38 +47,13 @@ floatToggle.addEventListener("change", async () => {
   }
 });
 
-startTabBtn.addEventListener("click", async () => {
+chooseSourceBtn.addEventListener("click", async () => {
   showError("");
-  startTabBtn.disabled = true;
-  statusLabel.textContent = "Pick a Chrome tab + audio…";
-
-  const streamId = await chooseTabAudio();
-  if (!streamId) {
-    showError("Cancelled. Pick a Chrome tab and enable audio.");
-    await refresh();
-    return;
-  }
-
-  const result = await chrome.runtime.sendMessage({
-    type: "START_TAB_CAPTURE",
-    streamId,
-  });
-  if (!result?.ok) {
-    showError(result?.error || "Could not capture tab audio.");
-    await refresh();
-    return;
-  }
-  window.close();
-});
-
-startScreenBtn.addEventListener("click", async () => {
-  showError("");
-  // Full Chrome picker with Entire Screen (desktopCapture tab-only UI is too limited).
   const result = await chrome.runtime.sendMessage({
     type: "OPEN_SCREEN_CAPTURE_SESSION",
   });
   if (!result?.ok) {
-    showError(result?.error || "Could not open screen capture.");
+    showError(result?.error || "Could not open sound source picker.");
     return;
   }
   window.close();
