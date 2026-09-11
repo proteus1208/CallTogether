@@ -59,7 +59,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.1`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.2`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -179,7 +179,6 @@ function setTranslateExpanded(open) {
     setShellPosition(rect.left, rect.top, "auto");
     shellEl.classList.add("ct-translate-open");
     const width = shellEl.offsetWidth || 800;
-    const height = shellEl.offsetHeight || 390;
     const maxLeft = Math.max(8, window.innerWidth - width - 8);
     if (rect.left > maxLeft) {
       setShellPosition(maxLeft, rect.top, "auto");
@@ -188,11 +187,14 @@ function setTranslateExpanded(open) {
       panelLeft: Math.round(Math.min(rect.left, maxLeft)),
       panelTop: Math.round(rect.top),
     });
-    void height;
   } else if (!next && wasOpen) {
     const rect = shellEl.getBoundingClientRect();
-    shellEl.classList.remove("ct-translate-open");
-    setShellPosition(rect.left, rect.top, "auto");
+    // Delay collapse so the right pane can fade out first.
+    setTimeout(() => {
+      if (translateOpen || !shellEl) return;
+      shellEl.classList.remove("ct-translate-open");
+      setShellPosition(rect.left, rect.top, "auto");
+    }, 220);
   } else {
     shellEl.classList.toggle("ct-translate-open", next);
   }

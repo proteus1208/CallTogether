@@ -15,11 +15,42 @@
       </div>
 
       <div class="body-row">
-        <div class="transcript show-placeholder" id="transcript">
-          <span id="finalText"></span><span id="partialText" class="partial"></span>
+        <div class="col transcript-col">
+          <div class="col-label">Transcript</div>
+          <div class="transcript show-placeholder" id="transcript">
+            <span id="finalText"></span><span id="partialText" class="partial"></span>
+          </div>
         </div>
-        <div class="translate-pane" id="translatePane" hidden>
-          <div class="translate-label">Translation</div>
+
+        <div class="col translate-pane" id="translatePane" aria-hidden="true">
+          <div class="col-head">
+            <div class="col-label">Translation</div>
+            <div class="lang-picker" id="langPicker">
+              <button
+                id="langBtn"
+                type="button"
+                class="lang-btn"
+                title="Target language"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+              >
+                <span id="langBtnLabel">Chinese (Simplified)</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M7 10l5 5 5-5H7z" />
+                </svg>
+              </button>
+              <div class="lang-menu" id="langMenu" hidden>
+                <input
+                  id="langSearch"
+                  type="search"
+                  placeholder="Search language…"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <ul id="langList" role="listbox"></ul>
+              </div>
+            </div>
+          </div>
           <div class="translate-text show-placeholder" id="translateText"></div>
         </div>
       </div>

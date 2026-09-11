@@ -542,6 +542,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: true, translateOpen });
         break;
       }
+      case "SET_TRANSLATE_TARGET": {
+        const next = String(message.target || "").trim();
+        if (!next) {
+          sendResponse({ ok: false, error: "Missing language." });
+          break;
+        }
+        translateTarget = next;
+        await chrome.storage.sync.set({ translateTarget });
+        await broadcastState({ status: "Updating translation…" });
+        if (translateOpen) {
+          await refreshTranslation({ force: true });
+        }
+        sendResponse({ ok: true, translateTarget });
+        break;
+      }
       case "SUBMIT_TRANSCRIPT": {
         await setActionBusy(true, "Waiting for speech…");
         try {

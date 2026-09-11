@@ -33,7 +33,7 @@
   max-width: none !important;
   max-height: none !important;
   box-sizing: border-box !important;
-  transition: width 0.18s ease !important;
+  transition: width 0.22s ease !important;
 }
 
 #calltogether-float-root.ct-translate-open {
