@@ -59,7 +59,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.0`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.6.1`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -302,19 +302,8 @@ function dispatchEnter(el) {
     composed: true,
   };
   el.focus();
+  // One keydown only — keypress/keyup/form submit often cause duplicate sends.
   el.dispatchEvent(new KeyboardEvent("keydown", opts));
-  el.dispatchEvent(new KeyboardEvent("keypress", opts));
-  el.dispatchEvent(new KeyboardEvent("keyup", opts));
-
-  const form = el.closest?.("form");
-  if (form) {
-    try {
-      if (typeof form.requestSubmit === "function") form.requestSubmit();
-      else form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    } catch {
-      // ignore
-    }
-  }
 }
 
 function tryClickSendButton(fromEl) {
@@ -334,7 +323,6 @@ function tryClickSendButton(fromEl) {
     'button[aria-label="Send message"]',
     'button[aria-label="Send prompt"]',
     'button[aria-label="Send"]',
-    'button[type="submit"]',
   ];
 
   for (const root of scopes) {
@@ -349,7 +337,7 @@ function tryClickSendButton(fromEl) {
     for (const btn of root.querySelectorAll("button")) {
       if (btn.disabled || btn.getAttribute("aria-disabled") === "true") continue;
       const label = `${btn.getAttribute("aria-label") || ""} ${btn.textContent || ""}`;
-      if (/^\s*send\b/i.test(label.trim()) || /send message|send prompt/i.test(label)) {
+      if (/send message|send prompt/i.test(label) || /^\s*send\s*$/i.test(label.trim())) {
         btn.click();
         return true;
       }
@@ -407,10 +395,10 @@ async function applyPaste(text, { send = false } = {}) {
 
   insertText(editable, value);
   if (send) {
-    // Let the pasted text settle in the composer, then send.
+    // Let the pasted text settle, then send exactly once.
     await sleep(300);
-    dispatchEnter(editable);
-    tryClickSendButton(editable);
+    const clicked = tryClickSendButton(editable);
+    if (!clicked) dispatchEnter(editable);
     await sleep(60);
     clearEditable(editable);
   }
