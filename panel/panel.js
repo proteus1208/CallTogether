@@ -5,7 +5,6 @@ const clearBtn = document.getElementById("clearBtn");
 const finalTextEl = document.getElementById("finalText");
 const partialTextEl = document.getElementById("partialText");
 const transcriptEl = document.getElementById("transcript");
-const hintEl = document.getElementById("hint");
 const dotEl = document.querySelector("[data-dot]");
 
 let localFinal = "";
@@ -30,19 +29,19 @@ function setCapturingUi(capturing) {
 }
 
 shareBtn.addEventListener("click", async () => {
-  setStatus("Opening capture window…");
+  setStatus("Opening…");
   shareBtn.disabled = true;
   try {
     const result = await chrome.runtime.sendMessage({ type: "OPEN_CAPTURE_HOST" });
     if (!result?.ok) {
-      setStatus(result?.error || "Could not open capture window.", true);
+      setStatus(result?.error || "Failed", true);
       setCapturingUi(false);
       return;
     }
-    setStatus("In the capture window, click Choose sound source.");
+    setStatus("Pick audio in the share window");
     shareBtn.disabled = false;
   } catch (error) {
-    setStatus(error?.message || "Could not open capture window.", true);
+    setStatus(error?.message || "Failed", true);
     setCapturingUi(false);
   }
 });
@@ -50,7 +49,7 @@ shareBtn.addEventListener("click", async () => {
 stopBtn.addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "STOP_CAPTURE" });
   setCapturingUi(false);
-  setStatus("Stopped.");
+  setStatus("Stopped");
 });
 
 clearBtn.addEventListener("click", async () => {
@@ -58,7 +57,7 @@ clearBtn.addEventListener("click", async () => {
   localPartial = "";
   renderTranscript();
   await chrome.runtime.sendMessage({ type: "CLEAR_TRANSCRIPT" });
-  setStatus("Cleared.");
+  setStatus("Cleared");
 });
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -71,7 +70,7 @@ chrome.runtime.onMessage.addListener((message) => {
 
   if (message.error) setStatus(message.error, true);
   else if (message.status) setStatus(message.status);
-  else if (message.capturing) setStatus("Listening…");
+  else if (message.capturing) setStatus("Listening");
 });
 
 chrome.runtime
@@ -85,8 +84,6 @@ chrome.runtime
   })
   .catch(() => {});
 
-hintEl.textContent =
-  "A small capture window opens — click Choose sound source there";
 renderTranscript();
-setStatus("Ready — choose a sound source");
+setStatus("Ready");
 setCapturingUi(false);

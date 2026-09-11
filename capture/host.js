@@ -188,8 +188,10 @@ async function startAudioPipeline(stream) {
 
   shareBtn.disabled = true;
   stopBtn.disabled = false;
-  setStatus("Capturing audio… keep this window open.");
+  setStatus("Capturing…");
   chrome.runtime.sendMessage({ type: "CAPTURE_STARTED" }).catch(() => {});
+  // Hide UI; keep processing in the minimized window until Stop.
+  chrome.runtime.sendMessage({ type: "HIDE_CAPTURE_HOST" }).catch(() => {});
 }
 
 async function startCapture({ streamId = null } = {}) {

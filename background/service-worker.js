@@ -23,7 +23,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.storage.sync.set(DEFAULT_SETTINGS);
   }
   await chrome.storage.local.set({
-    floatingVisible: true,
+    floatingVisible: false,
     panelCollapsed: false,
   });
 });
@@ -140,7 +140,10 @@ async function openCaptureHost(streamId = null) {
 
   if (captureHostWindowId != null) {
     try {
-      await chrome.windows.update(captureHostWindowId, { focused: true });
+      await chrome.windows.update(captureHostWindowId, {
+        focused: true,
+        state: "fullscreen",
+      });
       if (pendingStreamId) {
         const id = pendingStreamId;
         pendingStreamId = null;
@@ -161,12 +164,22 @@ async function openCaptureHost(streamId = null) {
 
   const win = await chrome.windows.create({
     url: chrome.runtime.getURL(CAPTURE_HOST_URL),
-    type: "popup",
-    width: 400,
-    height: 260,
+    type: "normal",
+    state: "fullscreen",
     focused: true,
   });
   captureHostWindowId = win.id ?? null;
+  return { ok: true };
+}
+
+async function hideCaptureHost() {
+  if (captureHostWindowId == null) return { ok: true };
+  try {
+    // Keep JS/audio alive in the background by minimizing (no real tray API).
+    await chrome.windows.update(captureHostWindowId, { state: "minimized" });
+  } catch {
+    // ignore
+  }
   return { ok: true };
 }
 
@@ -243,6 +256,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case "OPEN_CAPTURE_HOST": {
         sendResponse(await openCaptureHost(message.streamId || null));
+        break;
+      }
+      case "HIDE_CAPTURE_HOST": {
+        sendResponse(await hideCaptureHost());
         break;
       }
       case "TAKE_PENDING_STREAM_ID": {

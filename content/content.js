@@ -55,7 +55,6 @@ function ensureShell() {
         <span class="ct-dot" data-dot></span>
         <div>
           <strong>CallTogether</strong>
-          <span class="ct-tagline">Live call transcript → AI chat</span>
         </div>
       </div>
       <div class="ct-actions">
@@ -69,12 +68,12 @@ function ensureShell() {
       allow="microphone *"
     ></iframe>
     <div class="ct-footer">
-      Drag freely · <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> pastes transcript + Enter
+      <kbd data-hotkey>${formatHotkey(hotkey)}</kbd> paste
     </div>
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.3`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.4`;
   hotkeyEl = shellEl.querySelector("[data-hotkey]");
 
   (document.body || document.documentElement).appendChild(shellEl);
@@ -320,8 +319,8 @@ async function pasteTranscriptAndSend() {
 }
 
 async function isFloatingEnabled() {
-  const local = await chrome.storage.local.get({ floatingVisible: true });
-  return local.floatingVisible !== false;
+  const local = await chrome.storage.local.get({ floatingVisible: false });
+  return local.floatingVisible === true;
 }
 
 async function init() {

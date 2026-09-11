@@ -85,7 +85,7 @@ body {
 
 .transcript:empty::before,
 .transcript.show-placeholder::before {
-  content: "Your live call transcript will appear here…";
+  content: "Transcript…";
   color: var(--muted);
 }
 

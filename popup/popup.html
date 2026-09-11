@@ -8,50 +8,12 @@
   </head>
   <body>
     <main>
-      <header>
-        <p class="brand">CallTogether</p>
-        <h1>Turn call audio into AI answers</h1>
-        <p class="lede">
-          Opens a small capture window. Click <strong>Choose sound source</strong>
-          there to show Chrome’s share dialog.
-        </p>
-      </header>
-
-      <section class="state">
-        <div class="row">
-          <span>Status</span>
-          <strong id="statusLabel">Idle</strong>
-        </div>
-      </section>
-
       <label class="toggle-row" for="floatToggle">
         <span>
           <strong>Floating panel</strong>
-          <small>Live transcript on the AI page</small>
         </span>
         <input id="floatToggle" type="checkbox" role="switch" />
       </label>
-
-      <section class="capture-block">
-        <button id="chooseSourceBtn" type="button">
-          <span class="btn-title">Choose sound source</span>
-          <span class="btn-sub">Chrome Tab · Window · Entire Screen</span>
-        </button>
-        <button id="stopBtn" type="button" class="ghost" disabled>Stop capture</button>
-      </section>
-
-      <button id="clearBtn" type="button" class="ghost full">Clear transcript</button>
-
-      <p id="error" class="error" hidden></p>
-
-      <p class="hint">
-        Enable audio in the dialog. Window share has no sound — use a Chrome tab
-        or Entire Screen + system audio for desktop apps.
-      </p>
-
-      <footer>
-        <a href="#" id="openOptions">Settings &amp; hotkey</a>
-      </footer>
     </main>
     <script type="module" src="popup.js"></script>
   </body>
