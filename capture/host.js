@@ -370,6 +370,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     stopCapture(false).then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (message?.type === "CAPTURE_PAGE_FLUSH") {
+    sendToSandbox({ type: "FLUSH" });
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message?.type === "HOST_START_WITH_STREAM_ID") {
     startCapture({ streamId: message.streamId }).then(() =>
       sendResponse({ ok: true })

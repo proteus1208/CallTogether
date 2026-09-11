@@ -316,6 +316,17 @@ window.addEventListener("message", async (event) => {
       return;
     }
 
+    if (data.type === "FLUSH") {
+      if (recognizer) {
+        try {
+          recognizer.retrieveFinalResult();
+        } catch (error) {
+          post({ type: "ERROR", error: error?.message || String(error) });
+        }
+      }
+      return;
+    }
+
     if (data.type === "RESET") {
       if (recognizer) {
         try {

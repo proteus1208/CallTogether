@@ -16,6 +16,68 @@ let transcript = "";
 let partial = "";
 let captureHostWindowId = null;
 let pendingStreamId = null;
+let lastPartialAt = 0;
+let utteranceEpoch = 0;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function flushRecognizer() {
+  try {
+    await chrome.runtime.sendMessage({ type: "CAPTURE_PAGE_FLUSH" });
+  } catch {
+    // capture host may be closed
+  }
+}
+
+/** Wait until the current speech utterance is finalized into transcript. */
+async function waitForUtteranceComplete({ timeoutMs = 10000 } = {}) {
+  if (!capturing) return;
+
+  await flushRecognizer();
+
+  // No live partial — brief settle for a pending final chunk.
+  if (!partial.trim()) {
+    await sleep(220);
+    if (!partial.trim()) return;
+  }
+
+  const start = Date.now();
+  let lastText = partial;
+  let stableSince = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    if (!partial.trim()) {
+      await sleep(180);
+      if (!partial.trim()) return;
+    }
+
+    if (partial !== lastText) {
+      lastText = partial;
+      stableSince = Date.now();
+    } else if (Date.now() - stableSince >= 650) {
+      await flushRecognizer();
+      await sleep(250);
+      return;
+    }
+
+    await sleep(90);
+  }
+}
+
+async function consumeTranscriptText() {
+  if (capturing) {
+    await broadcastState({ status: "Finalizing…" });
+  }
+  await waitForUtteranceComplete();
+  const text = [transcript, partial].filter(Boolean).join(" ").trim();
+  transcript = "";
+  partial = "";
+  lastPartialAt = 0;
+  await broadcastState();
+  return text;
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.sync.set(DEFAULT_SETTINGS);
@@ -298,11 +360,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "SUBMIT_TRANSCRIPT": {
-        // Consume here so we never nest CONSUME inside a tab message round-trip.
-        const text = [transcript, partial].filter(Boolean).join(" ").trim();
-        transcript = "";
-        partial = "";
-        await broadcastState();
+        const text = await consumeTranscriptText();
         if (!text) {
           sendResponse({ ok: true, sent: false, empty: true });
           break;
@@ -317,10 +375,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         break;
       }
       case "CONSUME_TRANSCRIPT": {
-        const text = [transcript, partial].filter(Boolean).join(" ").trim();
-        transcript = "";
-        partial = "";
-        await broadcastState();
+        const text = await consumeTranscriptText();
         sendResponse({ ok: true, text });
         break;
       }
@@ -345,6 +400,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (chunk) {
           transcript = transcript ? `${transcript} ${chunk}` : chunk;
           partial = "";
+          utteranceEpoch += 1;
           await broadcastState();
         }
         sendResponse({ ok: true });
@@ -352,6 +408,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case "TRANSCRIPT_PARTIAL": {
         partial = (message.text || "").trim();
+        lastPartialAt = Date.now();
+        if (partial) utteranceEpoch += 1;
         await broadcastState();
         sendResponse({ ok: true });
         break;

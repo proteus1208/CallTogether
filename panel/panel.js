@@ -94,19 +94,23 @@ clearBtn.addEventListener("click", async () => {
 });
 
 submitBtn.addEventListener("click", async () => {
-  // Clear local UI immediately; background also clears stored history.
-  localFinal = "";
-  localPartial = "";
-  renderTranscript();
-  const result = await chrome.runtime.sendMessage({ type: "SUBMIT_TRANSCRIPT" });
-  if (!result?.ok) {
-    setStatus(result?.error || "Focus an input first", true);
-    return;
+  setStatus("Waiting for speech…");
+  submitBtn.disabled = true;
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "SUBMIT_TRANSCRIPT" });
+    if (!result?.ok) {
+      setStatus(result?.error || "Focus an input first", true);
+      return;
+    }
+    localFinal = "";
+    localPartial = "";
+    renderTranscript();
+    setStatus(result.empty ? "Nothing to send" : result.sent ? "Sent" : "Pasted");
+  } catch (error) {
+    setStatus(error?.message || "Send failed", true);
+  } finally {
+    submitBtn.disabled = false;
   }
-  localFinal = "";
-  localPartial = "";
-  renderTranscript();
-  setStatus(result.empty ? "Nothing to send" : result.sent ? "Sent" : "Pasted");
 });
 
 chrome.runtime.onMessage.addListener((message) => {

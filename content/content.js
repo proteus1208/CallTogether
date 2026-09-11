@@ -58,7 +58,7 @@ function ensureShell() {
   `;
 
   iframeEl = shellEl.querySelector("[data-frame]");
-  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.9`;
+  iframeEl.src = `${chrome.runtime.getURL(PANEL_PATH)}?v=1.5.10`;
 
   (document.body || document.documentElement).appendChild(shellEl);
 
@@ -325,6 +325,41 @@ function tryClickSendButton(fromEl) {
   return false;
 }
 
+function clearEditable(el) {
+  if (!el) return;
+  el.focus();
+
+  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+    const proto =
+      el.tagName === "TEXTAREA"
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
+    if (descriptor?.set) descriptor.set.call(el, "");
+    else el.value = "";
+    try {
+      el.setSelectionRange(0, 0);
+    } catch {
+      // ignore
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
+  const cleared = document.execCommand("selectAll", false) && document.execCommand("delete", false);
+  if (!cleared) {
+    el.textContent = "";
+  }
+  el.dispatchEvent(
+    new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" })
+  );
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function applyPaste(text, { send = false } = {}) {
   const editable =
     resolveEditable(document.activeElement) ||
@@ -340,8 +375,10 @@ async function applyPaste(text, { send = false } = {}) {
   insertText(editable, value);
   if (send) {
     dispatchEnter(editable);
-    // React/ProseMirror UIs often ignore synthetic Enter — click Send too.
     tryClickSendButton(editable);
+    // Let the site accept the value + Enter, then clear the composer.
+    await sleep(60);
+    clearEditable(editable);
   }
   return { ok: true, sent: send };
 }
